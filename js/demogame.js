@@ -4,7 +4,8 @@
 		Fixed: The reason this happened was because the ball would be in a position where
 		the x flipping would occure every frame so it seemed not to move.
 	2. When balls are being removed from the scene multiple balls will be removed at the same time
-		
+		Issue: When one ball goes through the remove process it seems to also be connected to all the other
+		balls in the game.  Working on a fix for this one.
 	3. When the ball hits the ground some times the y velocity is removed even though there should still be bouncing
 		Fixed: This was the same issue that happened with the x bounderies.  Now when velocity is flipped the y position
 		is set to the ground plane.
@@ -15,11 +16,17 @@
 		potentially we don't remove an item that is in the process of being drawn.
 */
 
+// Connect the game to the load event
+if (window.addEventListener) {
+	window.addEventListener('load', demoGame, false);
+} else {
+	window.attachEvent('onload', demoGame);
+}
 
 
 // First thing I need to do is create an event for the site when it is complete
 // There are multiple ways to do this but for today I'm going to be lazy and use jQuery
-$(document).ready(function () {
+function demoGame () {
 	// Before we initialize the engine we need to create a config object
 	let cfg = {
 		clearClr: '#202020',
@@ -146,6 +153,8 @@ $(document).ready(function () {
 		// Time to merge the config with the new ball entity
 		Object.assign(ball, config);
 		Object.assign(this, ball);
+
+		return ball;
 	};
 
 	function BallCollider(config) {
@@ -243,4 +252,4 @@ $(document).ready(function () {
 
 	// Run the simulation
 	engine.Run();
-});
+};
