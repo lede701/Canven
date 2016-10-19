@@ -1,0 +1,14 @@
+body {
+  background-color: #000000;
+  color: #ffffff; }
+
+.panel {
+  border: 1px solid #ffffff;
+  border-radius: 15px;
+  width: 100%; }
+
+.panel-center {
+  width: 1000px;
+  margin: auto; }
+
+/*# sourceMappingURL=canven.css.map */
