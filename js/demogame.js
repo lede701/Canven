@@ -35,6 +35,33 @@ function demoGame () {
 	// Now when the page is done loading it is time to initialize the game engine
 	let engine = new Canven(cfg);
 
+	function LineEntity(config) {
+		let line = engine.NewEntity({
+			name: "Line",
+			Draw: (ctx) => {
+				// Draw a line down the middle of the field
+				let oldStyle = ctx.strokeStyle;
+				let x = (engine.size.x / 2)-5;
+
+				ctx.beginPath();
+				let rgb = engine.HexToRGB(line.color);
+				ctx.strokeStyle = `rgba(${rgb.toString()},0.5`;
+				ctx.lineWidth = 1;
+
+				ctx.moveTo(x, 0);
+				ctx.lineTo(x, engine.size.y);
+				ctx.stroke();
+
+				ctx.strokeStyle = oldStyle;
+			},
+			color: '#c0c0c0'
+
+		});
+
+		Object.assign(line, config);
+		Object.assign(this, line);
+	}
+
 	// Need a new entity object we can use to add into the game engine
 	function GravBall(config) {
 		// Create a config for the Entity class
@@ -132,12 +159,12 @@ function demoGame () {
 				// Not perfect but it is getting there
 				// It would be nice to fade ball out instead of doing a harsh rip out of game engine
 				let steps = 1 / 60; // 1.0 divided by 60 frames
-				ball.alpha -= steps;
-				if (ball.alpha > 0) {
-					setTimeout(ball.RemoveBall, 1000 / 60);
+				this.alpha -= steps;
+				if (this.alpha > 0) {
+					setTimeout(this.RemoveBall, 1000 / 60);
 				} else {
 					// This method doesn't exists so time to make it
-					engine.RemoveEntity(ball);
+					engine.RemoveEntity(this);
 				}
 			},
 			alpha: 1.0,
@@ -153,8 +180,6 @@ function demoGame () {
 		// Time to merge the config with the new ball entity
 		Object.assign(ball, config);
 		Object.assign(this, ball);
-
-		return ball;
 	};
 
 	function BallCollider(config) {
@@ -163,23 +188,21 @@ function demoGame () {
 				// Need to figure out what to do when another ball hits me
 				let dirChange = -1;
 				let youPos = you.Position;
-				let mePos = coll.entity.Position;
-				let vel = coll.entity.Velocity;
+				let mePos = this.entity.Position;
+				let vel = this.entity.Velocity;
 
-				let delta = engine.NewVector2D(0, 0);
-				delta.x = youPos.x - mePos.x;
-				delta.y = youPos.y - mePos.y;
+				let delta = engine.NewVector2D(youPos.x - mePos.x, youPos.y - mePos.y);
 				let numerator = Math.abs(delta.x) + Math.abs(delta.y);
 
-				vel.x *= dirChange;
-				vel.y *= dirChange;
+				vel.x = dirChange * (delta.x / numerator);
+				vel.y = dirChange * (delta.y / numerator);
 			},
 			CheckHit: (you) => {
 				// Setup the math variable we need
 				let youPos = you.Position;
-				let mePos = coll.entity.Position;
+				let mePos = this.entity.Position;
 				let youRaidus = you.ballSize;
-				let meRadius = coll.entity.ballSize;
+				let meRadius = this.entity.ballSize;
 
 				// Calculate the square of the two lines
 				let diff = (Math.abs(mePos.x - youPos.x) * Math.abs(mePos.x - youPos.x)) +
@@ -193,13 +216,13 @@ function demoGame () {
 		});
 
 		Object.assign(coll, config);
-
-		return coll;
+		Object.assign(this, coll);
 	}
 
 	// Adding a visual ground plane for the game world
 	function Ground(config) {
 		let grd = engine.NewEntity({
+			name: "Ground",
 			color: '#814607',
 			Draw: (ctx) => {
 				let pos = grd.Position;
@@ -212,7 +235,34 @@ function demoGame () {
 			}
 		});
 
-		return grd;
+		Object.assign(grd, config);
+		Object.assign(this, grd);
+	}
+
+	// Now I want to add a gun to the scene :)
+	function TheBigGun(config) {
+		let gun = engine.NewEntity({
+			name: "The BIG Gun!",
+			Draw: (ctx) => {
+				let oldStyle = ctx.fillStyle;
+				ctx.fillStyle = this.color;
+				// Position is the center point so calculate the rect
+				let rect = { x: 0, y: 0, h: 50, w: 10 };
+				rect.x = this.Position.x - 5;
+				rect.y = this.Position.y;
+
+				ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+				ctx.fillStyle = oldStyle;
+			},
+			Move: (deltaTime) => {
+
+			},
+			color: '#ff0000'
+		});
+
+		Object.assign(gun, config);
+		Object.assign(this, gun);
 	}
 
 	// Run the initialization part of the engine
@@ -224,20 +274,21 @@ function demoGame () {
 	cv.onclick = (e) => {
 		// Get the event object
 		e = e || windows.event;
-		let clickPos = engine.NewVector2D(e.clientX, e.clientY);
+		let clickPos = engine.NewVector2D(
+			e.pageX - engine.canvas.offsetLeft,
+			e.pageY - engine.canvas.offsetTop);
 		// Add this so we can debug the start position
 		let startPos = engine.NewVector2D((engine.size.x / 2) - 5, engine.size.y - 100);
 		// Need to create a new ball each time
 		let newball = new GravBall({
 			Position: startPos,
-			Target: clickPos,
+			Target: clickPos
 		});
 		newball.collider = engine.NewCollider(new BallCollider({ entity: newball }));
 		// Need to calculate the velocity as it is shot to the click position
 		newball.Calculate();
 		// Need to add the ball to the simulator or noting will happen duh!?!?
 		engine.AddEntity(newball);
-		console.log(newball);
 	}
 
 	window.onkeydown = (e) => {
@@ -247,7 +298,11 @@ function demoGame () {
 		}
 	};
 
+	let line = new LineEntity({ color: '#ffffff' });
 	let ground = new Ground({});
+	let theBigOne = new TheBigGun({ Position: engine.NewVector2D((engine.size.x / 2) - 5, engine.size.y - 80) });
+	engine.AddEntity(line);
+	engine.AddEntity(theBigOne);
 	engine.AddEntity(ground);
 
 	// Run the simulation

@@ -30,8 +30,10 @@ function Canven(config) {
 
 	me.AddEntity = (ent) => {
 		let el = me.entityList;
-		ent.Init({ id: el.length });
-		el[ent.id] = ent;
+		let idx = el.length;
+		ent.Init({});
+		ent.id = idx;
+		el[idx] = ent;
 	}
 
 	me.Clear = (ctx) => {
@@ -144,7 +146,7 @@ function Canven(config) {
 	};
 
 	me.NewEntity = (config) => {
-		return new Entity(config);
+		return Entity(config);
 	};
 
 	me.NewVector2D = (x, y) => {
@@ -331,45 +333,40 @@ function Canven(config) {
 	}
 
 	function Entity(config) {
-		let ent = this;
-		ent.id = -1;
-		ent.collider = null;
-		ent.children = new Array();
-		ent.name = "Entity";
+		let ent = {
+			id: -1,
+			collider: null,
+			childre: [],
+			name: "Entity",
+			Position: me.NewVector2D(0, 0),
+			Rotation: me.NewVector2D(0, 0),
+			Scale: me.NewVector2D(1, 1),
+			Velocity: me.NewVector2D(0, 0),
+			AddChild: (child) => {
+				let chld = ent.children;
+				let id = `${me.id}:${chld.length}`;
+				child.Init({ id: id });
+				chld[chld.length] = child;
 
-		ent.Position = me.NewVector2D(0, 0);
-		ent.Rotation = me.NewVector2D(0, 0);
-		ent.Scale = me.NewVector2D(1, 1);
-		ent.Velocity = me.NewVector2D(0, 0);
-
-		ent.AddChild = (child) => {
-			let chld = ent.children;
-			let id = `${me.id}:${chld.length}`;
-			child.Init({ id: id });
-			chld[chld.length] = child;
-
-			return ent;
-		};
-
-		ent.Draw = (ctx) => {
-			console.error("No defined draw method for entity");
-
-			return ent;
-		}
-
-		ent.Move = (deltaTime) => {
-			ent.Position.x += ent.Velocity.x * deltaTime;
-			ent.Position.y += ent.Velocity.y * deltaTime;
-			return ent;
-		};
-
-		ent.Init = (config) => {
-			Object.assign(this, config);
-
-			return ent;
+				return this;
+			},
+			Draw: (ctx) => {
+				console.error("No defined draw method for entity");
+				return this;
+			},
+			Move: (deltaTime) => {
+				ent.Position.x += ent.Velocity.x * deltaTime;
+				ent.Position.y += ent.Velocity.y * deltaTime;
+				return this;
+			},
+			Init: (config) => {
+				Object.assign(ent, config);
+				return this;
+			}
 		};
 
 		Object.assign(ent, config);
+		return ent;
 	}
 
 	function Vector2D(config) {
