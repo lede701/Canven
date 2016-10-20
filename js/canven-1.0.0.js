@@ -152,9 +152,12 @@ function Canven(config) {
 					// Check if there was a hit
 					if (ent.collider.CheckHit(other)) {
 						// Hit detrected so tell the colliders to handle it
-						console.log(`Hit: ${ent.id} and ${other.id}`);
-						ent.collider.Collision(other);
-						other.collider.Collision(ent);
+						//console.log(`Hit: ${ent.id} and ${other.id}`);
+						ent.collider.HandleCollision(other);
+						other.collider.HandleCollision(ent);
+						if (typeof (ent.collider.Callback) == 'function') {
+							ent.collider.Callback(other);
+						}
 					}
 				}
 			}
@@ -179,7 +182,7 @@ function Canven(config) {
 				}
 				// Re index the entity list
 				me.IndexEntities();
-				me.deadEntities = new Array();
+				me.deadEntities = [];
 			} else if (me.deadEntities.length == 1) {
 				// Yeah only one to remove
 				let idx = me.deadEntities[0].id;
@@ -309,16 +312,19 @@ class Collider {
 	constructor(config) {
 		this.entity = null;
 		this.colliderActive = false;
+		this.Callback = null; // Put a function in the callback if you want a message that a collision was handled
+
 		Object.assign(this, config);
 	}
 
-	Collision(you) {
+	HandleCollision(you) {
 		console.error("Collision happend so handle it!");
 	}
 
 	CheckHit(you) {
 		console.error("Checking for hit to bad we don't have and logic for this!");
 	}
+
 }
 
 class Effect {

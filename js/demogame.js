@@ -37,6 +37,8 @@ function demoGame () {
 	// Now when the page is done loading it is time to initialize the game engine
 	let engine = new Canven(cfg);
 
+	let score = 0;
+
 	class LineEntity extends Entity{
 		constructor(config) {
 			super(config);
@@ -61,6 +63,28 @@ function demoGame () {
 		}
 	}
 
+	class Score extends Entity {
+		constructor(config) {
+			super(config);
+
+			this.Position.x = engine.size.x - 200;
+			this.Position.y = 25;
+		};
+
+		Draw(ctx) {
+			let msg = `Score: ${score}`;
+			let oldFont = ctx.font;
+			let oldStyle = ctx.fillStyle;
+
+			ctx.font = "14pt Georgia";
+			ctx.fillStyle = this.color;
+			ctx.fillText(msg, 0, 0);
+
+			ctx.font = oldFont;
+			ctx.fillStyle = oldStyle;
+		};
+	}
+
 	// Need a new entity object we can use to add into the game engine
 	class GravBall extends Entity {
 		constructor(config){
@@ -74,7 +98,7 @@ function demoGame () {
 			this.gravity = 0.2;
 			this.isMoving = true;
 			this.speed = -15;
-		}
+		};
 
 		Calculate(){
 			// Setup the needed values for the rise over run formula
@@ -87,7 +111,7 @@ function demoGame () {
 			// Set initial velocity for the ball
 			this.Velocity.x = (delta.x / numerator) * this.speed;
 			this.Velocity.y = (delta.y / numerator) * this.speed;
-		}
+		};
 
 		Draw(ctx){
 			// ctx is provided by the game engine when the draw
@@ -110,7 +134,7 @@ function demoGame () {
 
 			// Return the style back to original value before I wakced it
 			ctx.fillStyle = oldStyle;
-		}
+		};
 
 		Move(deltaTime){
 			// I don't like these but I'm to lazy to refactor right now
@@ -176,7 +200,7 @@ function demoGame () {
 
 			++this.frameCnt;
 			//*/
-		}
+		};
 
 		RemoveBall(ball){
 			// Not perfect but it is getting there
@@ -189,7 +213,7 @@ function demoGame () {
 				// This method doesn't exists so time to make it
 				engine.RemoveEntity(ball);
 			}
-		}
+		};
 	};
 
 	class BallCollider extends Collider {
@@ -197,9 +221,16 @@ function demoGame () {
 			super(config);
 			this.radius = 0;
 			this.colliderActive = true;
-		}
+			this.Callback = function (ent) {
+				// Ah much better to now just have one item add the score
+				score += 15;
+				// Time to be evil and delete the other entity I hit
+				// There may be a dead lock in the delete entity code
+				engine.RemoveEntity(ent);
+			};
+		};
 
-		Collision(you) {
+		HandleCollision(you) {
 			// Need to figure out what to do when another ball hits me
 			let dirChange = -1;
 			let youPos = you.Position;
@@ -213,7 +244,7 @@ function demoGame () {
 
 			vel.x = dirChange * ((delta.x / numerator) * velSum);
 			vel.y = dirChange * ((delta.y / numerator) * velSum);
-		}
+		};
 
 		CheckHit(you) {
 			let ent = this.entity;
@@ -231,7 +262,7 @@ function demoGame () {
 			let sqRadius = (youRaidus + meRadius) * (Math.abs(mePos.y - youPos.y));
 
 			return sqDiff < sqRadius;
-		}
+		};
 	}
 
 	class Ground extends Entity {
@@ -239,7 +270,7 @@ function demoGame () {
 			super(config);
 			this.name = "Ground";
 			this.color = '#814607';
-		}
+		};
 
 		Draw(ctx) {
 			let pos = this.Position;
@@ -249,7 +280,7 @@ function demoGame () {
 			ctx.fillRect(0, engine.size.y - 50, engine.size.x, engine.size.y);
 
 			ctx.fillStyle = oldStyle;
-		}
+		};
 	}
 
 	// Now I want to add a gun to the scene :)
@@ -258,25 +289,23 @@ function demoGame () {
 			super(config);
 			this.name = "The BIG Gun!";
 			this.color = "#ff0000";
-		}
+		};
 
 		Draw(ctx){
 			let oldStyle = ctx.fillStyle;
 			ctx.fillStyle = this.color;
 			// Position is the center point so calculate the rect
 			let rect = { x: 0, y: 0, h: 50, w: 10 };
-			rect.x = this.Position.x - 5;
-			rect.y = this.Position.y;
 
-			ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+			ctx.fillRect(-5, 0, rect.w, rect.h);
 
 			ctx.fillStyle = oldStyle;
 			return this;
-		}
+		};
 
 		Move(deltaTime) {
 			return this;
-		}
+		};
 	}
 
 	// Run the initialization part of the engine
@@ -313,12 +342,16 @@ function demoGame () {
 	};
 
 	let line = new LineEntity({ color: '#ffffff' });
+	let scoreLine = new Score({color: '#ffffff' });
 	let ground = new Ground({});
 	let theBigOne = new TheBigGun({ Position: new Vector2D((engine.size.x / 2) - 5, engine.size.y - 80) });
 	engine.AddEntity(line);
+	engine.AddEntity(scoreLine);
 	engine.AddEntity(theBigOne);
 	engine.AddEntity(ground);
 
 	// Run the simulation
 	engine.Run();
 };
+
+// Sorry right now I am unable to get the chat section to work.  I'm not trying to ignore you just message are no longer being sent to me via the chat window.  If you would like to ask questions feel free to send anything to info@zaxis-studios.com
