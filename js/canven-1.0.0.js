@@ -123,7 +123,7 @@ function Canven(config) {
 		}
 
 		// Connect to mouse tracking
-		me.mousePos = me.NewVector2D(0, 0);
+		me.mousePos = new Vector2D(0, 0);
 		document.onmousemove = me.MouseMove;
 
 		me.Splash();
@@ -139,18 +139,6 @@ function Canven(config) {
 
 		me.mousePos.x = e.clientX;
 		me.mousePos.y = e.clientY;
-	};
-
-	me.NewCollider = (config) => {
-		return new Collider(config);
-	};
-
-	me.NewEntity = (config) => {
-		return Entity(config);
-	};
-
-	me.NewVector2D = (x, y) => {
-		return new Vector2D({ x: x, y: y });
 	};
 
 	me.Physics = () => {
@@ -315,69 +303,71 @@ function Canven(config) {
 
 	// Apply config settings
 	Object.assign(me, config);
-
-	function Collider(config) {
-		let coll = this;
-
-		coll.entity = null;
-
-		coll.Collision = (you) => {
-			console.error("Collision happend so handle it!");
-		};
-
-		coll.CheckHit = (you) => {
-			console.error("Checking for hit to bad we don't have and logic for this!");
-		};
-
-		Object.assign(coll, config);
-	}
-
-	function Entity(config) {
-		let ent = {
-			id: -1,
-			collider: null,
-			childre: [],
-			name: "Entity",
-			Position: me.NewVector2D(0, 0),
-			Rotation: me.NewVector2D(0, 0),
-			Scale: me.NewVector2D(1, 1),
-			Velocity: me.NewVector2D(0, 0),
-			AddChild: (child) => {
-				let chld = ent.children;
-				let id = `${me.id}:${chld.length}`;
-				child.Init({ id: id });
-				chld[chld.length] = child;
-
-				return this;
-			},
-			Draw: (ctx) => {
-				console.error("No defined draw method for entity");
-				return this;
-			},
-			Move: (deltaTime) => {
-				ent.Position.x += ent.Velocity.x * deltaTime;
-				ent.Position.y += ent.Velocity.y * deltaTime;
-				return this;
-			},
-			Init: (config) => {
-				Object.assign(ent, config);
-				return this;
-			}
-		};
-
-		Object.assign(ent, config);
-		return ent;
-	}
-
-	function Vector2D(config) {
-		let v = this;
-		v.x = 0;
-		v.y = 0;
-		Object.assign(v, config);
-
-		v.toString = () => {
-			return `[${v.x}, ${v.y}]`;
-		};
-	};
-
 };
+
+class Collider {
+	constructor(config) {
+		this.entity = null;
+		this.colliderActive = false;
+		Object.assign(this, config);
+	}
+
+	Collision(you) {
+		console.error("Collision happend so handle it!");
+	}
+
+	CheckHit(you) {
+		console.error("Checking for hit to bad we don't have and logic for this!");
+	}
+}
+
+class Entity{
+	constructor(config) {
+		this.id = -1;
+		this.collider = null;
+		this.children = [];
+		this.name = "Entity";
+		this.Position = new Vector2D(0, 0);
+		this.Rotation = new Vector2D(0, 0);
+		this.Scale = new Vector2D(1, 1);
+		this.Velocity = new Vector2D(0, 0);
+
+		Object.assign(this, config);
+	}
+
+	AddChild(child) {
+		let list = this.children;
+		let id = `${this.id}:${list.length}`;
+		child.Init({ id: id });
+		list[list.length] = child;
+
+		return this;
+	}
+
+	Draw(ctx) {
+		console.error("No defined draw method for entity");
+		return this;
+	}
+
+	Init(config) {
+		Object.assign(this, config);
+	}
+
+	Move(deltaTime) {
+		this.Position.x += this.Velocity.x * deltaTime;
+		this.Position.y += this.Velocity.y * deltaTime;
+		return this;
+
+	}
+}
+
+class Vector2D {
+	constructor(x, y) {
+		this.x = x;
+		this.y = y;
+	}
+
+	toString() {
+		return `[${this.x}, ${this.y}]`;
+	}
+}
