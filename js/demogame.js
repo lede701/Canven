@@ -6,6 +6,8 @@
 	2. When balls are being removed from the scene multiple balls will be removed at the same time
 		Issue: When one ball goes through the remove process it seems to also be connected to all the other
 		balls in the game.  Working on a fix for this one.
+		Fixed: There was an error in the engine array splice method where it was just wacking off all objects after the one
+		set to be deleted.  Add 1 to the splice method so that only one array element is removed.
 	3. When the ball hits the ground some times the y velocity is removed even though there should still be bouncing
 		Fixed: This was the same issue that happened with the x bounderies.  Now when velocity is flipped the y position
 		is set to the ground plane.
@@ -98,9 +100,12 @@ function demoGame () {
 			// Convert ball color into RGB
 			let rgb = engine.HexToRGB(b.color);
 
+			let ballSize = b.ballSize;// * this.Scale.x;
+
 			ctx.fillStyle = `rgba(${rgb.toString()},${b.alpha}`;
 			ctx.beginPath();
-			ctx.arc(b.Position.x, b.Position.y, b.ballSize, 0, 2 * Math.PI);
+			// The core engine handles placing the object in the right location so just start the drawing at 0,0
+			ctx.arc(0, 0, ballSize, 0, 2 * Math.PI);
 			ctx.fill();
 
 			// Return the style back to original value before I wakced it
@@ -158,6 +163,17 @@ function demoGame () {
 				setTimeout(this.RemoveBall, 1000, this);
 			}
 
+			// Get distasnce ball is from ground to add that 2.5D effect to the balls
+			let ballDist = ground - this.Position.y;
+			// Calculate the ballScale and limit its range from 1.0 to 0.6
+			let ballScale = 0.6 + (0.4 * (1.0 - (ballDist / ground)));
+
+			// Getting closer now I just need to limit to be between 1.0 and 0.5
+			this.Scale.x = ballScale;
+			this.Scale.y = ballScale;
+
+			// Need to figure out how far from the floor the ball is
+
 			++this.frameCnt;
 			//*/
 		}
@@ -204,8 +220,9 @@ function demoGame () {
 			// Setup the math variable we need
 			let youPos = you.Position;
 			let mePos = ent.Position;
-			let youRaidus = you.ballSize;
-			let meRadius = ent.ballSize;
+			// Adjusting the radius to allow for ball scale
+			let youRaidus = you.ballSize * you.Scale.x;
+			let meRadius = ent.ballSize * ent.Scale.x;
 
 			// Calculate the square of the two lines
 			let sqDiff = (Math.abs(mePos.x - youPos.x) * Math.abs(mePos.x - youPos.x)) +

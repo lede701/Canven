@@ -208,7 +208,7 @@ function Canven(config) {
 			}
 			let deltaTime = 1.0;
 			for (let i = 0; i < me.entityList.length; ++i) {
-				me.entityList[i].Draw(me.ctx);
+				me.entityList[i].EngineDraw(me.ctx);
 				me.entityList[i].Move(deltaTime);
 			}
 
@@ -321,14 +321,53 @@ class Collider {
 	}
 }
 
+class Effect {
+	constructor(config, ctx) {
+		this.name = "Null Effect"; // Change name in your effect to properly describe it
+		this.effectType = 'normal';
+		this.effectFunc = ctx.globalCompositeOperations;
+
+		// Lazy mans way of pushing settings
+		Object.assign(this, config);
+	}
+
+	start(ctx) {
+		// Put your effect code into this section.
+		ctx.save();
+		if (typeof (this.effectFunc) == 'function') {
+			this.effectFunc(ctx.effectType);
+		} else {
+			console.error('No defined context effect function!');
+		}
+		ctx.globalCompositeOperations(this.effectType);
+	}
+
+	end(ctx) {
+		// Put any ending effect items in this section.
+		ctx.restore();
+	}
+}
+
+class EffectMultiply extends Effect {
+	constructor(config, ctx) {
+		super(config, ctx);
+
+		this.name = "Multiply Effect";
+		// For a simple effect this is all we have to do :D
+		this.effectType = "multiply";
+	}
+}
+
 class Entity{
 	constructor(config) {
 		this.id = -1;
 		this.collider = null;
 		this.children = [];
+		this.effects = [];
 		this.name = "Entity";
 		this.Position = new Vector2D(0, 0);
-		this.Rotation = new Vector2D(0, 0);
+		this.Rotation = 0;
+		this.RotationCenter = new Vector2D(0, 0);
 		this.Scale = new Vector2D(1, 1);
 		this.Velocity = new Vector2D(0, 0);
 
@@ -342,6 +381,38 @@ class Entity{
 		list[list.length] = child;
 
 		return this;
+	}
+
+	AddEffect(effect) {
+		let idx = this.effects.length;
+		effect.id = idx;
+		this.effects[idx] = effect;
+	}
+
+	EngineDraw(ctx) { // DO NOT overload this method unless you know what the f*ck your doing!
+		// So am I qualified to write code in here?
+		ctx.save();
+		if (this.Rotation != 0) {
+			// Before we can rotate we need to translate the object to the rotation center
+			let move = new Vector2D(0, 0);
+			move.x = this.Position.x + this.RotationCenter.x;
+			move.y = this.Position.y + this.RotationCenter.y;
+			ctx.transform(move.x, move.y);
+			// Need to convert the rotation from degrees into radians
+			let radians = this.Rotation * (180 / Math.PI);
+			ctx.rotate(radians);
+		}
+
+		// First do a translate and see if we can get this to work
+		ctx.translate(this.Position.x, this.Position.y);
+		ctx.scale(this.Scale.x, this.Scale.y);
+
+		// Call the client entity draw routine now that the core engine code is ready
+		this.Draw(ctx);
+
+		ctx.scale(1.0, 1.0);
+		ctx.translate(-this.Position.x, -this.Position.y);
+		ctx.restore();
 	}
 
 	Draw(ctx) {
