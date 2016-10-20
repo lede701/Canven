@@ -113,7 +113,7 @@ function Canven(config) {
 			me.ctx = me.canvas.getContext(me.ctxType);
 			if (me.ctx != null && typeof (me.ctx) != null) {
 				me.isReady = true;
-				me.size = new Vector2D({ x: me.canvas.width, y: me.canvas.height });
+				me.size = new Vector2D(me.canvas.width, me.canvas.height);
 
 				setTimeout(me.fpsUpdate, 1000);
 			}
@@ -152,7 +152,7 @@ function Canven(config) {
 					// Check if there was a hit
 					if (ent.collider.CheckHit(other)) {
 						// Hit detrected so tell the colliders to handle it
-						console.log(`Hit between ${ent.id} and ${other.id}`);
+						console.log(`Hit: ${ent.id} and ${other.id}`);
 						ent.collider.Collision(other);
 						other.collider.Collision(ent);
 					}
@@ -184,7 +184,7 @@ function Canven(config) {
 				// Yeah only one to remove
 				let idx = me.deadEntities[0].id;
 				// Remove entity
-				me.entityList.splice(idx);
+				me.entityList.splice(idx, 1);
 				me.IndexEntities();
 				me.deadEntities = new Array();
 			}

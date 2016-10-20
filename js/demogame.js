@@ -155,25 +155,24 @@ function demoGame () {
 			// Adding a kill ball and remove from simulation process
 			if (this.Velocity.x == 0 && this.Velocity.y == 0) {
 				this.isMoving = false;
-				setTimeout(this.RemoveBall, 1000);
+				setTimeout(this.RemoveBall, 1000, this);
 			}
 
 			++this.frameCnt;
 			//*/
 		}
 
-		RemoveBall(){
+		RemoveBall(ball){
 			// Not perfect but it is getting there
 			// It would be nice to fade ball out instead of doing a harsh rip out of game engine
 			let steps = 1 / 60; // 1.0 divided by 60 frames
 			this.alpha -= steps;
 			if (this.alpha > 0) {
-				setTimeout(this.RemoveBall, 1000 / 60);
+				setTimeout(this.RemoveBall, 1000 / 60, ball);
 			} else {
 				// This method doesn't exists so time to make it
-				engine.RemoveEntity(this);
+				engine.RemoveEntity(ball);
 			}
-
 		}
 	};
 
@@ -186,7 +185,6 @@ function demoGame () {
 
 		Collision(you) {
 			// Need to figure out what to do when another ball hits me
-			/*
 			let dirChange = -1;
 			let youPos = you.Position;
 			let mePos = this.entity.Position;
@@ -194,20 +192,20 @@ function demoGame () {
 
 			let velSum = Math.abs(vel.x) + Math.abs(vel.y);
 
-			let delta = engine.NewVector2D(youPos.x - mePos.x, youPos.y - mePos.y);
+			let delta = new Vector2D(youPos.x - mePos.x, youPos.y - mePos.y);
 			let numerator = Math.abs(delta.x) + Math.abs(delta.y);
 
 			vel.x = dirChange * ((delta.x / numerator) * velSum);
 			vel.y = dirChange * ((delta.y / numerator) * velSum);
-			//*/
 		}
 
 		CheckHit(you) {
+			let ent = this.entity;
 			// Setup the math variable we need
 			let youPos = you.Position;
-			let mePos = this.entity.Position;
+			let mePos = ent.Position;
 			let youRaidus = you.ballSize;
-			let meRadius = this.entity.ballSize;
+			let meRadius = ent.ballSize;
 
 			// Calculate the square of the two lines
 			let sqDiff = (Math.abs(mePos.x - youPos.x) * Math.abs(mePos.x - youPos.x)) +
@@ -227,7 +225,6 @@ function demoGame () {
 		}
 
 		Draw(ctx) {
-			console.log("Drawing ground");
 			let pos = this.Position;
 			let oldStyle = ctx.fillStyle;
 
@@ -239,29 +236,30 @@ function demoGame () {
 	}
 
 	// Now I want to add a gun to the scene :)
-	function TheBigGun(config) {
-		let gun = engine.NewEntity({
-			name: "The BIG Gun!",
-			Draw: (ctx) => {
-				let oldStyle = ctx.fillStyle;
-				ctx.fillStyle = this.color;
-				// Position is the center point so calculate the rect
-				let rect = { x: 0, y: 0, h: 50, w: 10 };
-				rect.x = this.Position.x - 5;
-				rect.y = this.Position.y;
+	class TheBigGun extends Entity{
+		constructor(config) {
+			super(config);
+			this.name = "The BIG Gun!";
+			this.color = "#ff0000";
+		}
 
-				ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+		Draw(ctx){
+			let oldStyle = ctx.fillStyle;
+			ctx.fillStyle = this.color;
+			// Position is the center point so calculate the rect
+			let rect = { x: 0, y: 0, h: 50, w: 10 };
+			rect.x = this.Position.x - 5;
+			rect.y = this.Position.y;
 
-				ctx.fillStyle = oldStyle;
-			},
-			Move: (deltaTime) => {
+			ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
 
-			},
-			color: '#ff0000'
-		});
+			ctx.fillStyle = oldStyle;
+			return this;
+		}
 
-		Object.assign(gun, config);
-		Object.assign(this, gun);
+		Move(deltaTime) {
+			return this;
+		}
 	}
 
 	// Run the initialization part of the engine
@@ -299,9 +297,9 @@ function demoGame () {
 
 	let line = new LineEntity({ color: '#ffffff' });
 	let ground = new Ground({});
-//	let theBigOne = new TheBigGun({ Position: new Vector2D((engine.size.x / 2) - 5, engine.size.y - 80) });
+	let theBigOne = new TheBigGun({ Position: new Vector2D((engine.size.x / 2) - 5, engine.size.y - 80) });
 	engine.AddEntity(line);
-//	engine.AddEntity(theBigOne);
+	engine.AddEntity(theBigOne);
 	engine.AddEntity(ground);
 
 	// Run the simulation
