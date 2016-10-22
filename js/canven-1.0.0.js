@@ -27,6 +27,7 @@ function Canven(config) {
 	me.removeByRun = false;
 	me.size = null;
 	me.splashDone = false;
+	me.Events = null;
 
 	me.AddEntity = (ent) => {
 		let el = me.entityList;
@@ -79,6 +80,9 @@ function Canven(config) {
 
 		ctx.fillText(msg, 30, 25);
 
+		msg = `Game Objects: ${this.entityList.length}`;
+		ctx.fillText(msg, 30, 50);
+
 		ctx.font = oldFont;
 		ctx.fillStyle = oldStyle;
 
@@ -121,6 +125,10 @@ function Canven(config) {
 			console.error(`Canvas #${me.canvasId} was not found in document`);
 			return;
 		}
+
+		me.Events = new Events();
+		me.Events.Init(me);
+		me.Events.AddEventType('splashend');
 
 		// Connect to mouse tracking
 		me.mousePos = new Vector2D(0, 0);
@@ -172,7 +180,7 @@ function Canven(config) {
 				for (let i = 0; i < me.deadEntities.length; ++i) {
 					// If I have more than one entity to remove this will get sticky
 					let idx = me.deadEntities[i].id;
-					for (let j = 0; j < me.entityList.length; ++i) {
+					for (let j = 0; j < me.entityList.length; ++j) {
 						if (me.entityList[j].id == idx) {
 							// Remove entity and stop looking
 							me.entityList.splice(j, 1);
@@ -221,6 +229,8 @@ function Canven(config) {
 			++me._fpsCnt;
 			me.removeByRun = true;
 			me.RemoveEntity();
+			// Process events in the message pump
+			me.Events.handleEvents();
 
 			requestAnimationFrame(me.Run);
 		}
@@ -248,7 +258,8 @@ function Canven(config) {
 				++me._fpsCurr;
 			} else {
 				me.splashDone = true;
-
+				// Tell anyone who cares the splash has completed
+				me.Events.raiseEvent({ id: 0, type: 'splashend', e: {} });
 			}
 		};
 
@@ -435,6 +446,141 @@ class Entity{
 		this.Position.y += this.Velocity.y * deltaTime;
 		return this;
 
+	}
+}
+
+// There are several things we can do as an event system and so many different ways to do them.  For now
+// I think it would be good to program the event system to capture and event and then wait for the right
+// polling time before the event is processed and handled.
+// The other way to handle this is when an event is registered is to process it right away.  Both ways have
+// their pros and cons.  But from the engine side it might make more sense to have it hold all events and then
+// process these events when the game loop is ready for events so that events don't interupt a frame draw or other
+// important step.  So with that we need to create a message pump so that events can be sent to it when ever but then
+// have them process when the engine is ready.
+
+class Events {
+	constructor(config) {
+		this.pendingEvents = [];
+		this.events = {
+			click: [],
+			keydown: [],
+			keyup: [],
+			mousemove: []
+		};
+
+		this.maxEventHandles = 15;
+
+		let em = this; // Event manager, yes I know I'm really lazy and don't like to type that much
+
+		// Update events data stgructure with config
+		Object.assign(this, config);
+
+		this.handleClick = function (e) {
+			e = e || windows.event;
+			// Example of how we are going to handle events
+			let evt = {
+				id: 0,
+				type: 'click',
+				e: e
+			};
+			// There is a scope issue here so calling this method crunches the class scope
+			em.raiseEvent(evt);
+		};
+
+		this.handleKeyDown = function (e) {
+			e = e || windows.event;
+			let evt = {
+				id: 0,
+				type: 'keydown',
+				e: e
+			};
+			em.raiseEvent(evt);
+		};
+
+		this.handleKeyUp = function (e) {
+			e = e || windows.event;
+			let evt = {
+				id: 0,
+				type: 'keyup',
+				e: e
+			};
+			em.raiseEvent(evt);
+		};
+
+		this.handleMouseMove = function (e) {
+			e = e || windows.event;
+			let evt = {
+				id: 0,
+				type: 'mousemove',
+				e: e
+			};
+			em.raiseEvent(evt);
+		};
+	};
+
+	Init(eng) {
+		// We need to connect all the events we want to listen for to the canvas window
+		eng.canvas.onclick = this.handleClick;
+		window.onkeydown = this.handleKeyDown;
+		window.onkeyup = this.handleKeyUp;
+		eng.canvas.onmousemove = this.handleMouseMove;
+	};
+
+	raiseEvent(evt) {
+		let idx = this.pendingEvents.length;
+		evt.id = idx;
+
+		// Put the new event at the end of the messages
+		this.pendingEvents.push(evt);
+	};
+
+	handleEvents() {
+		// Start processing events from the front of the line
+		let cnt = 0;
+		// Keep going until there are no message to process, kind of
+		while (this.pendingEvents.length > 0) {
+			// Get message from front of line
+			let evt = this.pendingEvents.shift();
+			let evtType = evt.type;
+			if (typeof (this.events[evtType]) != 'undefined') {
+				for (let i = 0; i < this.events[evtType].length; ++i) {
+					// Dereference the event data
+					this.events[evtType][i].handle(evt.e);
+				}
+			}
+
+			// Kill this loop after the number of maxEventHandles has been processed
+			if (++cnt > this.maxEventHandles) break;
+		}
+	};
+
+	// Add a new event handler
+	AddEventHandler(eventType, handler) {
+		if (Object.keys(this.events).indexOf(eventType) == -1) {
+			this.AddEventType(eventType);
+		}
+		this.events[eventType].push({ handle: handler });
+	};
+
+	// Make it so custom event types can be defined.  Line the game egnine may need to crate a bunch of event types
+	AddEventType(type) {
+		this.events[type] = [];
+	};
+
+	///////////////////////////////////////////////////////
+	// Quick methods to add events to common event types
+	///////////////////////////////////////////////////////
+	Click(handler) {
+		console.log('Adding click handler');
+		this.AddEventHandler('click', handler);
+	};
+
+	KeyDown(handler) {
+		this.AddEventHandler('keydown', handler);
+	}
+
+	KeyUp(handler) {
+		this.AddEventHandler('keyup', handler);
 	}
 }
 

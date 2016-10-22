@@ -226,7 +226,7 @@ function demoGame () {
 				score += 15;
 				// Time to be evil and delete the other entity I hit
 				// There may be a dead lock in the delete entity code
-				engine.RemoveEntity(ent);
+				//engine.RemoveEntity(ent);
 			};
 		};
 
@@ -311,10 +311,58 @@ function demoGame () {
 	// Run the initialization part of the engine
 	engine.Init();
 
+	// Don't do this because it is really EVIL!!!!
+	function CrazyFire()
+	{
+		// Get the event object
+		let x = (Math.random() * (engine.size.x - 20)) + 10;
+		let clickPos = new Vector2D(x , 10 );
+		// Add this so we can debug the start position
+		let startPos = new Vector2D((engine.size.x / 2) - 5, engine.size.y - 100);
+		// Need to create a new ball each time
+		let newball = new GravBall({
+			Position: startPos,
+			Target: clickPos,
+		});
+		newball.collider = new BallCollider({ entity: newball });
+		// Need to calculate the velocity as it is shot to the click position
+		newball.Calculate();
+		// Need to add the ball to the simulator or noting will happen duh!?!?
+		engine.AddEntity(newball);
 
-	// I want to shoot a ball now!!!!
-	let cv = document.getElementById(engine.canvasId);
-	cv.onclick = (e) => {
+		x = 10;
+		let y = (Math.random() * (engine.size.y - 70)) + 10;
+		clickPos = new Vector2D(x, y);
+		startPos = new Vector2D(engine.size.x - 10, engine.size.y / 2);
+		newball = new GravBall({
+			Position: startPos,
+			Target: clickPos
+		});
+		newball.collider = new BallCollider({ entity: newball });
+		newball.Calculate();
+		engine.AddEntity(newball);
+
+		x = engine.size.x - 10;
+		y = (Math.random() * (engine.size.y - 70)) + 10;
+		clickPos = new Vector2D(x, y);
+		startPos = new Vector2D(10, engine.size.y / 2);
+		newball = new GravBall({
+			Position: startPos,
+			Target: clickPos
+		});
+		newball.collider = new BallCollider({ entity: newball });
+		newball.Calculate();
+		engine.AddEntity(newball);
+
+		// Fire 12 balls per second!
+		setTimeout(CrazyFire, 1000/12);
+	}
+
+	engine.Events.AddEventHandler('splashend', CrazyFire);
+
+
+	// Time to test the new event system.  How much will this code blow up my browser/compputer
+	engine.Events.Click((e) => {
 		// Get the event object
 		e = e || windows.event;
 		let clickPos = new Vector2D(
@@ -332,14 +380,14 @@ function demoGame () {
 		newball.Calculate();
 		// Need to add the ball to the simulator or noting will happen duh!?!?
 		engine.AddEntity(newball);
-	}
+	});
 
-	window.onkeydown = (e) => {
+	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
 		if (e.which == 81) {
 			engine.Close();
 		}
-	};
+	});
 
 	let line = new LineEntity({ color: '#ffffff' });
 	let scoreLine = new Score({color: '#ffffff' });
