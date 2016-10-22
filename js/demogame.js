@@ -45,10 +45,10 @@ function demoGame () {
 			this.name = "Line";
 			this.color = '#c0c0c0';
 		}
-		Draw(ctx){
+		Draw(ctx) {
 			// Draw a line down the middle of the field
 			let oldStyle = ctx.strokeStyle;
-			let x = (engine.size.x / 2)-5;
+			let x = (engine.size.x / 2) - 5;
 
 			ctx.beginPath();
 			let rgb = engine.HexToRGB(this.color);
@@ -61,6 +61,10 @@ function demoGame () {
 
 			ctx.strokeStyle = oldStyle;
 		}
+
+		Move(deltaTime) {
+			return this;
+		};
 	}
 
 	class Score extends Entity {
@@ -68,7 +72,7 @@ function demoGame () {
 			super(config);
 
 			this.Position.x = engine.size.x - 200;
-			this.Position.y = 25;
+			this.Position.y = 40;
 		};
 
 		Draw(ctx) {
@@ -83,6 +87,10 @@ function demoGame () {
 			ctx.font = oldFont;
 			ctx.fillStyle = oldStyle;
 		};
+
+		Move(deltaTime) {
+			return this;
+		};
 	}
 
 	// Need a new entity object we can use to add into the game engine
@@ -91,13 +99,13 @@ function demoGame () {
 			super(config);
 			this.name = "Gravity Ball";
 			this.alpha = 1.0;
-			this.ballFriction = 0.007;
+			this.ballFriction = 0.01;
 			this.ballSize = 10;
 			this.color = '#ffffff';
 			this.frameCnt = 0;
-			this.gravity = 0.2;
+			this.gravity = 0.15;
 			this.isMoving = true;
-			this.speed = -15;
+			this.speed = -26;
 		};
 
 		Calculate(){
@@ -134,6 +142,7 @@ function demoGame () {
 
 			// Return the style back to original value before I wakced it
 			ctx.fillStyle = oldStyle;
+			return this;
 		};
 
 		Move(deltaTime){
@@ -200,6 +209,7 @@ function demoGame () {
 
 			++this.frameCnt;
 			//*/
+			return this;
 		};
 
 		RemoveBall(ball){
@@ -281,6 +291,10 @@ function demoGame () {
 
 			ctx.fillStyle = oldStyle;
 		};
+
+		Move(deltaTime) {
+			return this;
+		};
 	}
 
 	// Now I want to add a gun to the scene :)
@@ -325,7 +339,7 @@ function demoGame () {
 			Target: clickPos,
 		});
 		newball.collider = new BallCollider({ entity: newball });
-		// Need to calculate the velocity as it is shot to the click position
+		// Need to calculatex the velocity as it is shot to the click position
 		newball.Calculate();
 		// Need to add the ball to the simulator or noting will happen duh!?!?
 		engine.AddEntity(newball);
@@ -358,7 +372,12 @@ function demoGame () {
 		setTimeout(CrazyFire, 1000/12);
 	}
 
-	engine.Events.AddEventHandler('splashend', CrazyFire);
+	function CrazyStart()
+	{
+		setTimeout(CrazyFire, 1200);
+	}
+
+	engine.Events.AddEventHandler('splashend', CrazyStart);
 
 
 	// Time to test the new event system.  How much will this code blow up my browser/compputer

@@ -20,14 +20,18 @@ function Canven(config) {
 	me.entityList = new Array();
 	me.fps = 60;
 	me._fpsCnt = 0;
-	me._fpsCurr = 0;
+	me._fpsCurr = 120;
 	me._fpsShow = true;
+	me._simCnt = 0;
+	me._simCurr = 60;
 	me.isReady = false;
+	me.isSimulating = false;
 	me.mousePos = null;
 	me.removeByRun = false;
 	me.size = null;
 	me.splashDone = false;
 	me.Events = null;
+	me.deltaTime = 0.5;
 
 	me.AddEntity = (ent) => {
 		let el = me.entityList;
@@ -59,8 +63,10 @@ function Canven(config) {
 
 	me.fpsUpdate = () => {
 		me._fpsCurr = me._fpsCnt;
+		me._simCurr = me._simCnt;
 		me._fpsCnt = 0;
-		if (me._isReady) {
+		me._simCnt = 0;
+		if (me.isReady) {
 			setTimeout(me.fpsUpdate, 1000);
 		}
 	};
@@ -74,7 +80,7 @@ function Canven(config) {
 		let oldStyle = ctx.fillStyle;
 		let oldFont = ctx.font;
 
-		let msg = `FPS: ${me._fpsCurr}`;
+		let msg = `FPS: ${me._fpsCurr} Sim: ${me._simCurr}`;
 		let obj = `Game Objects: ${this.entityList.length}`;
 		ctx.font = '12pt Georgia';
 
@@ -217,12 +223,14 @@ function Canven(config) {
 			setTimeout(me.Run, 500);
 			return;
 		}
+		if (!me.isSimulating) {
+			me.Simulate();
+		}
 		if(me.isReady){
 			me.Clear(me.ctx);
 			let deltaTime = 1.0;
 			for (let i = 0; i < me.entityList.length; ++i) {
 				me.entityList[i].EngineDraw(me.ctx);
-				me.entityList[i].Move(deltaTime);
 			}
 
 			// Run the physics simulation
@@ -239,6 +247,25 @@ function Canven(config) {
 			}
 
 			requestAnimationFrame(me.Run);
+		}
+	};
+
+	me.Simulate = () => {
+		if (me.isReady) {
+			me.isSimulating = true;
+			let t0 = performance.now();
+
+			for (let i = 0; i < me.entityList.length; ++i) {
+				me.entityList[i].Move(me.deltaTime);
+			}
+			me.Physics();
+
+			let t1 = performance.now();
+			let waitTime = Math.min(1, (1000 / 120) - (t1 = t0));
+
+			setTimeout(me.Simulate, waitTime);
+			me.deltaTime = Math.max(0, me._fpsCurr / me._simCurr);
+			++me._simCnt;
 		}
 	};
 
