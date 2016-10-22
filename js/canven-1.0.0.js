@@ -73,15 +73,20 @@ function Canven(config) {
 
 		let oldStyle = ctx.fillStyle;
 		let oldFont = ctx.font;
-		ctx.fillStyle = '#909090';
-		ctx.font = '12pt Georgia';
 
 		let msg = `FPS: ${me._fpsCurr}`;
+		let obj = `Game Objects: ${this.entityList.length}`;
+		ctx.font = '12pt Georgia';
 
+		let width = ctx.measureText(obj).width;
+
+		ctx.fillStyle = 'rgba(0,0,0,0.7)';
+		ctx.fillRect(25, 5, width + 20, 60);
+
+		ctx.fillStyle = '#909090';
 		ctx.fillText(msg, 30, 25);
 
-		msg = `Game Objects: ${this.entityList.length}`;
-		ctx.fillText(msg, 30, 50);
+		ctx.fillText(obj, 30, 50);
 
 		ctx.font = oldFont;
 		ctx.fillStyle = oldStyle;
@@ -214,9 +219,6 @@ function Canven(config) {
 		}
 		if(me.isReady){
 			me.Clear(me.ctx);
-			if (me._fpsShow) {
-				me.fpsShow(me.ctx);
-			}
 			let deltaTime = 1.0;
 			for (let i = 0; i < me.entityList.length; ++i) {
 				me.entityList[i].EngineDraw(me.ctx);
@@ -231,6 +233,10 @@ function Canven(config) {
 			me.RemoveEntity();
 			// Process events in the message pump
 			me.Events.handleEvents();
+
+			if (me._fpsShow) {
+				me.fpsShow(me.ctx);
+			}
 
 			requestAnimationFrame(me.Run);
 		}
