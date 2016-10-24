@@ -64,8 +64,8 @@ function Canven(config) {
 	me.fpsUpdate = () => {
 		if (me.isReady) {
 			me._fpsCurr = me._fpsCnt;
-			me._simCurr = me._simCnt;
 			me._fpsCnt = 0;
+			me._simCurr = me._simCnt;
 			me._simCnt = 0;
 			setTimeout(me.fpsUpdate, 1000);
 		}
@@ -185,8 +185,10 @@ function Canven(config) {
 					if (ent.collider.CheckHit(other)) {
 						// Hit detrected so tell the colliders to handle it
 						//console.log(`Hit: ${ent.id} and ${other.id}`);
-						ent.collider.HandleCollision(other);
-						other.collider.HandleCollision(ent);
+						let entVel = ent.collider.HandleCollision(other);
+						let othVel = other.collider.HandleCollision(ent);
+						ent.Velocity.set(entVel.x, entVel.y);
+						other.Velocity.set(othVel.x, othVel.y);
 						if (typeof (ent.collider.Callback) == 'function') {
 							ent.collider.Callback(other);
 						}
@@ -239,15 +241,11 @@ function Canven(config) {
 		if (!me.isSimulating) {
 			me.Simulate();
 		}
-		if(me.isReady){
+		if (me.isReady) {
 			me.Clear(me.ctx);
-			let deltaTime = 1.0;
 			for (let i = 0; i < me.entityList.length; ++i) {
 				me.entityList[i].EngineDraw(me.ctx);
 			}
-
-			// Run the physics simulation
-			me.Physics();
 
 			++me._fpsCnt;
 			me.removeByRun = true;
@@ -268,15 +266,18 @@ function Canven(config) {
 			me.isSimulating = true;
 			let t0 = performance.now();
 
+			// Going to see what the difference is if we test for collisions first before we move
+			me.Physics();
 			for (let i = 0; i < me.entityList.length; ++i) {
 				me.entityList[i].Move(me.deltaTime);
 			}
-			me.Physics();
 
 			let t1 = performance.now();
-			let waitTime = Math.min(1, (1000 / 120) - (t1 = t0));
-
+			let waitTime = Math.max(1, (1000 / 120) - (t1 - t0));
 			setTimeout(me.Simulate, waitTime);
+			console.log(waitTime);
+
+			// Calculate the deltaTime from this frame amount
 			me.deltaTime = Math.max(0, me._fpsCurr / me._simCurr);
 			++me._simCnt;
 		}
@@ -429,9 +430,9 @@ class Entity{
 		this.effects = [];
 		this.name = "Entity";
 		this.Parent = null;
-		this.Position = new Vector2D(0, 0);
+		this._position = new Vector2D(0, 0);
 		this.Rotation = 0;
-		this.RotationCenter = new Vector2D(0, 0);
+		this.Pivot = new Vector2D(0, 0);
 		this.Scale = new Vector2D(1, 1);
 		this.Velocity = new Vector2D(0, 0);
 
@@ -456,9 +457,10 @@ class Entity{
 	EngineDraw(ctx) { // DO NOT overload this method unless you know what the f*ck your doing!
 		// Start pre rendering tasks
 		ctx.save();
-		let pos = this.MyPos();
-		let mx = pos.x + this.RotationCenter.x;
-		let my = pos.y + this.RotationCenter.y;
+		let pos = this.Position;
+		// Calculate the objects draw position.
+		let mx = pos.x + this.Pivot.x;
+		let my = pos.y + this.Pivot.y;
 
 		ctx.translate(mx, my);
 
@@ -473,9 +475,20 @@ class Entity{
 
 		// Call the client entity draw routine now that the core engine code is ready
 		this.Draw(ctx);
+		// Process each child object
+		if (this.children.length > 0) {
+			for (let i = 0; i < this.children.length; ++i){
+				this.children[i].EngineDraw(ctx);
+			}
+		}
 
 		ctx.scale(1.0, 1.0);
-		ctx.translate(-this.Position.x, -this.Position.y);
+		if (this.Rotation != 0)
+		{
+			let radians = this.Rotation * (180 / Math.PI);
+			ctx.rotate(-radians);
+		}
+		ctx.translate(-mx, -my);
 		ctx.restore();
 	};
 
@@ -495,23 +508,127 @@ class Entity{
 
 	};
 
-	RealPos() {
+	get RealPos() {
 		let pos = null;
+		// Try and not calculate the parent location if there is no parent defined
 		if (this.Parent != null) {
 			pos = new Vector2D(this.Position.x, this.Position.y);
 			let parPos = this.Parent.RealPos();
 			pos.x += parPos.x;
 			pos.y += parPos.y;
-		} else
-		{
-			pos = this.Position;
+		} else {
+			pos = this._position;
 		}
 
 		return pos;
+	};
+
+	get Position() {
+		return this._position;
+	};
+
+	set Position(pos) {
+		this._position.x = pos.x;
+		this._position.y = pos.y;
+	};
+
+}// End Entity Definition
+
+
+// TODO: Create a road path to the entities in the scene so that they can be simulated in one physics world.
+class Scene extends Entity {
+	constructor(config) {
+		super(config);
+
+		this._camera = undefined;
+		this._layers = []; // Yes this will support layers but alas I don't recomend going to deep.
+		this._debug = false;
+	};
+
+	Draw(ctx) {
+		// No need to call each child the entity engine draw method will deal with that.
+		if (this._debug) {
+			// What do we want to show about the scene?
+			// - Total scene objects
+			// - How many objects are in view
+			// - any other metrics that might be interesting
+		}
+	};
+
+	Move(deltaTime) {
+		// Typically we don't want to move the scene, we should define a camera for scene scrolling.
+		// In the camera entity we will add the culling ability to remove non visible objects from the draw method
+	};
+
+	Add(entity) {// Create a shortcut to the child utility
+		this.AddChild(entity);
 	}
 
-	MyPos() {
-		return this.Position;
+	get Camera() {
+		return this._camera;
+	};
+
+	set Camera(cam) {
+		this._camera = cam;
+		cam.Parent = this;
+	};
+
+	set Debug(debug) {
+		// Make sure a valid true value is passed
+		this._debug = debug == true;
+	}
+}
+
+class Camera extends Entity {
+	constructor(config) {
+		super(config);
+		this._constroller = undefined;
+	};
+
+	Draw(ctx) {
+		ctx.translate(this.Position.x, this.Position.y);
+	};
+
+	Move(deltaTime) {
+		let speed = { x: 0, y: 0 };
+		if (typeof (this._controller) != 'undefined') {
+			// Try and move the camera based on the controller input
+		}
+	};
+
+	get Controller() {
+		return this._constroller;
+	};
+
+	set Controller(ctrl) {
+		this._constroller = ctrl;
+	};
+
+	get WorldPos() {
+		let xy = { x: this.Position.x, y: this.Position.y };
+		return xy;
+	};
+}
+
+class Circle extends Entity {
+	constructor(config) {
+		super(config);
+	};
+}
+
+class Rectangle extends Entity {
+	constructor(config) {
+		super(config);
+	};
+}
+
+class Sprite extends Entity {
+	constructor(config) {
+		super(config);
+	};
+
+	Draw(ctx) {
+
 	};
 }
 
@@ -650,21 +767,16 @@ class Events {
 	}
 }
 
-class Sprite extends Entity {
-	constructor(config) {
-		super(config);
-	};
-
-	Draw(ctx) {
-
-	};
-}
-
 class Vector2D {
 	constructor(x, y) {
 		this.x = x;
 		this.y = y;
 	}
+
+	set(x, y) {
+		this.x = x;
+		this.y = y;
+	};
 
 	toString() {
 		return `[${this.x}, ${this.y}]`;

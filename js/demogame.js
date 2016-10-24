@@ -16,6 +16,14 @@
 	5. When a ball is suppose to be removed it still is being processed.
 		Fixed: The remove process needed to be cleaned up to only remove items when the engine calls them so that
 		potentially we don't remove an item that is in the process of being drawn.
+	6. When there are 300+ balls in the scene the physics resolver crashes and the solver process.  The graphics go into a crazy
+		drawing routine of putting balls on top of each other and then they are stuck and can't move.
+	7. Physics seem a little fast not that the simulation loop is being used instead of the graphics loop.
+		Fixed: The issue was that the graphics loop still was calling the physics method.  This would make the myshics loop run
+		several time more than is should have during a simulations.  It was double becuase the simulation loop runs at 120 frames
+		per second while the graphics loop runs at 60 frames per second.  The other issue was the GravBall move method was 
+		adjusting velocity based on a delta time of 1.0 so added the real delta time to every velocity change and now the
+		simulation seems to have return to normal speeds.
 */
 
 // Connect the game to the load event
@@ -104,7 +112,7 @@ function demoGame () {
 			this.frameCnt = 0;
 			this.gravity = 0.08;
 			this.isMoving = true;
-			this.speed = -20;
+			this.speed = -15;
 
 			this.color = engine.CreateRGB(
 				parseInt((Math.random() * 200 + 55)),
@@ -157,15 +165,15 @@ function demoGame () {
 			this.Position.y += this.Velocity.y * deltaTime;
 			// Adjust the velocity by my FAKE gravity
 			//*
-			this.Velocity.y += this.gravity;
+			this.Velocity.y += (this.gravity * deltaTime);
 
 			// Need to add in a ground layer collision detection
 			if (this.Position.y > ground) {
 				if (this.frameCnt > 18) {
-					this.Velocity.y *= -0.8 // Just an estimate for now
+					this.Velocity.y *= -0.8 * deltaTime; // Just an estimate for now
 				} else {
 					// Fix the gitter after physics has depleted the y energy
-					this.Velocity.y = 0
+					this.Velocity.y = 0;
 				}
 				this.Position.y = ground;
 				this.frameCnt = 0;
@@ -174,7 +182,7 @@ function demoGame () {
 			// Ball went bye bye :(
 			if (this.Position.x > engine.size.x - 10 || this.Position.x < 10) {
 				// Need to flip x velocity
-				this.Velocity.x *= -0.7;
+				this.Velocity.x *= -0.7 * deltaTime;
 				if (this.Position.x > engine.size.x - 10) {
 					this.Position.x = engine.size.x - 10;
 				} else {
@@ -186,7 +194,7 @@ function demoGame () {
 			if (this.Position.y == ground && this.Velocity.x != 0) {
 				// So we need to always subtract the friction from velocity
 				this.Velocity.x -= this.ballFriction
-					* (this.Velocity.x / Math.abs(this.Velocity.x));
+					* (this.Velocity.x / Math.abs(this.Velocity.x)) * deltaTime;
 				// Clean up the velocity and make it stop moving
 				if (Math.abs(this.Velocity.x) < 0.01) {
 					this.Velocity.x = 0;
@@ -250,14 +258,22 @@ function demoGame () {
 			let mePos = this.entity.Position;
 			let vel = this.entity.Velocity;
 			let oVel = you.Velocity;
+			let newVel = new Vector2D(0, 0);
 
+			// Calculate the two objects shared energy/velocity
 			let velSum = ((Math.abs(vel.x) + Math.abs(vel.y)) + (Math.abs(oVel.x) + Math.abs(oVel.y))) / 2;
 
+			// Create a delta distance between the two center points of the circle
 			let delta = new Vector2D(youPos.x - mePos.x, youPos.y - mePos.y);
+			// Create the numerator for the division part of the velocity change
 			let numerator = Math.abs(delta.x) + Math.abs(delta.y);
 
-			vel.x = dirChange * ((delta.x / numerator) * velSum);
-			vel.y = dirChange * ((delta.y / numerator) * velSum);
+			// Change my velocity.
+			newVel.x = dirChange * ((delta.x / numerator) * velSum);
+			newVel.y = dirChange * ((delta.y / numerator) * velSum);
+
+			// Return the new velocity so the physics loop can update once both objects have doen their calculations
+			return newVel;
 		};
 
 		CheckHit(you) {
@@ -328,7 +344,8 @@ function demoGame () {
 
 	// Run the initialization part of the engine
 	engine.Init();
-	let maxBalls = 25;
+	let maxBalls = 200;
+	let theBigScene = new Scene({});
 
 	// Don't do this because it is really EVIL!!!!
 	function CrazyFire()
@@ -336,10 +353,10 @@ function demoGame () {
 		if (engine.entityList.length < maxBalls) {
 
 			// Get the event object
-			let x = (Math.random() * (engine.size.x - 20)) + 10;
-			let clickPos = new Vector2D(x, 10);
+			let y = (Math.random() * (engine.size.y - 20)) + 10;
+			let clickPos = new Vector2D(50, y);
 			// Add this so we can debug the start position
-			let startPos = new Vector2D((engine.size.x / 2) - 5, engine.size.y - 100);
+			let startPos = new Vector2D(engine.size.x - 50, 200);
 			// Need to create a new ball each time
 			let newball = new GravBall({
 				Position: startPos,
@@ -385,6 +402,7 @@ function demoGame () {
 
 	function CrazyStart()
 	{
+		// Make sure the physics calulations have had time to ramp
 		setTimeout(CrazyFire, 1200);
 	}
 
@@ -405,6 +423,7 @@ function demoGame () {
 			Position: startPos,
 			Target: clickPos,
 		});
+
 		newball.collider = new BallCollider({ entity: newball });
 		// Need to calculate the velocity as it is shot to the click position
 		newball.Calculate();
@@ -435,11 +454,14 @@ function demoGame () {
 	let line = new LineEntity({ color: '#ffffff' });
 	let scoreLine = new Score({color: '#ffffff' });
 	let ground = new Ground({});
-	let theBigOne = new TheBigGun({ Position: new Vector2D((engine.size.x / 2) - 5, engine.size.y - 80) });
-	engine.AddEntity(line);
-	engine.AddEntity(scoreLine);
-	engine.AddEntity(theBigOne);
-	engine.AddEntity(ground);
+	let theBigOne = new TheBigGun({ Position: new Vector2D((engine.size.x / 2) - 5, engine.size.y - 100) });
+
+	theBigScene.Add(line);
+	theBigScene.Add(scoreLine);
+	theBigScene.Add(theBigOne);
+	theBigScene.Add(ground);
+
+	engine.AddEntity(theBigScene);
 
 	// Run the simulation
 	engine.Run();
