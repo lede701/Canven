@@ -101,11 +101,16 @@ function demoGame () {
 			this.alpha = 1.0;
 			this.ballFriction = 0.01;
 			this.ballSize = 10;
-			this.color = '#ffffff';
 			this.frameCnt = 0;
-			this.gravity = 0.15;
+			this.gravity = 0.08;
 			this.isMoving = true;
-			this.speed = -26;
+			this.speed = -20;
+
+			this.color = engine.CreateRGB(
+				parseInt((Math.random() * 200 + 55)),
+				parseInt((Math.random() * 200 + 55)),
+				parseInt((Math.random() * 200 + 55))
+				);
 		};
 
 		Calculate(){
@@ -129,12 +134,9 @@ function demoGame () {
 			let oldStyle = ctx.fillStyle;
 			let b = this; // Add this so the arc command is on one line
 
-			// Convert ball color into RGB
-			let rgb = engine.HexToRGB(b.color);
-
 			let ballSize = b.ballSize;// * this.Scale.x;
 
-			ctx.fillStyle = `rgba(${rgb.toString()},${b.alpha}`;
+			ctx.fillStyle = `rgba(${b.color.toString()},${b.alpha}`;
 			ctx.beginPath();
 			// The core engine handles placing the object in the right location so just start the drawing at 0,0
 			ctx.arc(0, 0, ballSize, 0, 2 * Math.PI);
@@ -216,9 +218,10 @@ function demoGame () {
 			// Not perfect but it is getting there
 			// It would be nice to fade ball out instead of doing a harsh rip out of game engine
 			let steps = 1 / 60; // 1.0 divided by 60 frames
-			this.alpha -= steps;
-			if (this.alpha > 0) {
-				setTimeout(this.RemoveBall, 1000 / 60, ball);
+			ball.alpha -= steps;
+			ball.collider = null;
+			if (ball.alpha > 0) {
+				setTimeout(ball.RemoveBall, 1000 / 60, ball);
 			} else {
 				// This method doesn't exists so time to make it
 				engine.RemoveEntity(ball);
@@ -233,7 +236,7 @@ function demoGame () {
 			this.colliderActive = true;
 			this.Callback = function (ent) {
 				// Ah much better to now just have one item add the score
-				score += 15;
+				score += 1;
 				// Time to be evil and delete the other entity I hit
 				// There may be a dead lock in the delete entity code
 				//engine.RemoveEntity(ent);
@@ -246,8 +249,9 @@ function demoGame () {
 			let youPos = you.Position;
 			let mePos = this.entity.Position;
 			let vel = this.entity.Velocity;
+			let oVel = you.Velocity;
 
-			let velSum = Math.abs(vel.x) + Math.abs(vel.y);
+			let velSum = ((Math.abs(vel.x) + Math.abs(vel.y)) + (Math.abs(oVel.x) + Math.abs(oVel.y))) / 2;
 
 			let delta = new Vector2D(youPos.x - mePos.x, youPos.y - mePos.y);
 			let numerator = Math.abs(delta.x) + Math.abs(delta.y);
@@ -269,7 +273,7 @@ function demoGame () {
 			let sqDiff = (Math.abs(mePos.x - youPos.x) * Math.abs(mePos.x - youPos.x)) +
 				(Math.abs(mePos.y - youPos.y) * Math.abs(mePos.y - youPos.y));
 			// Calculate the square of the radius
-			let sqRadius = (youRaidus + meRadius) * (Math.abs(mePos.y - youPos.y));
+			let sqRadius = (youRaidus + meRadius) * (youRaidus + meRadius);
 
 			return sqDiff < sqRadius;
 		};
@@ -324,52 +328,59 @@ function demoGame () {
 
 	// Run the initialization part of the engine
 	engine.Init();
+	let maxBalls = 25;
 
 	// Don't do this because it is really EVIL!!!!
 	function CrazyFire()
 	{
-		// Get the event object
-		let x = (Math.random() * (engine.size.x - 20)) + 10;
-		let clickPos = new Vector2D(x , 10 );
-		// Add this so we can debug the start position
-		let startPos = new Vector2D((engine.size.x / 2) - 5, engine.size.y - 100);
-		// Need to create a new ball each time
-		let newball = new GravBall({
-			Position: startPos,
-			Target: clickPos,
-		});
-		newball.collider = new BallCollider({ entity: newball });
-		// Need to calculatex the velocity as it is shot to the click position
-		newball.Calculate();
-		// Need to add the ball to the simulator or noting will happen duh!?!?
-		engine.AddEntity(newball);
+		if (engine.entityList.length < maxBalls) {
 
-		x = 10;
-		let y = (Math.random() * (engine.size.y - 70)) + 10;
-		clickPos = new Vector2D(x, y);
-		startPos = new Vector2D(engine.size.x - 10, engine.size.y / 2);
-		newball = new GravBall({
-			Position: startPos,
-			Target: clickPos
-		});
-		newball.collider = new BallCollider({ entity: newball });
-		newball.Calculate();
-		engine.AddEntity(newball);
+			// Get the event object
+			let x = (Math.random() * (engine.size.x - 20)) + 10;
+			let clickPos = new Vector2D(x, 10);
+			// Add this so we can debug the start position
+			let startPos = new Vector2D((engine.size.x / 2) - 5, engine.size.y - 100);
+			// Need to create a new ball each time
+			let newball = new GravBall({
+				Position: startPos,
+				Target: clickPos,
+			});
+			newball.collider = new BallCollider({ entity: newball });
+			// Need to calculatex the velocity as it is shot to the click position
+			newball.Calculate();
+			// Need to add the ball to the simulator or noting will happen duh!?!?
+			engine.AddEntity(newball);
 
-		x = engine.size.x - 10;
-		y = (Math.random() * (engine.size.y - 70)) + 10;
-		clickPos = new Vector2D(x, y);
-		startPos = new Vector2D(10, engine.size.y / 2);
-		newball = new GravBall({
-			Position: startPos,
-			Target: clickPos
-		});
-		newball.collider = new BallCollider({ entity: newball });
-		newball.Calculate();
-		engine.AddEntity(newball);
+			/*
+			x = 10;
+			let y = (Math.random() * (engine.size.y - 70)) + 10;
+			clickPos = new Vector2D(x, y);
+			startPos = new Vector2D(engine.size.x - 10, engine.size.y / 2);
+			newball = new GravBall({
+				Position: startPos,
+				Target: clickPos
+			});
+			newball.collider = new BallCollider({ entity: newball });
+			newball.Calculate();
+			engine.AddEntity(newball);
 
-		// Fire 12 balls per second!
-		setTimeout(CrazyFire, 1000/12);
+			x = engine.size.x - 10;
+			y = (Math.random() * (engine.size.y - 70)) + 10;
+			clickPos = new Vector2D(x, y);
+			startPos = new Vector2D(10, engine.size.y / 2);
+			newball = new GravBall({
+				Position: startPos,
+				Target: clickPos
+			});
+			newball.collider = new BallCollider({ entity: newball });
+			newball.Calculate();
+			engine.AddEntity(newball);
+			//*/
+			// Fire 12 balls per second!
+			setTimeout(CrazyFire, 1000 / 12);
+		} else {
+			setTimeout(CrazyFire, 50);
+		}
 	}
 
 	function CrazyStart()
@@ -403,9 +414,22 @@ function demoGame () {
 
 	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
-		if (e.which == 81) {
-			engine.Close();
+		switch(e.which)
+		{
+			case 81:
+				engine.Close();
+				break;
+			case 187:
+				++maxBalls;
+				break;
+			case 189:
+				--maxBalls;
+				break;
+			default:
+				console.info(`Key: ${e.which}`);
+				break;
 		}
+
 	});
 
 	let line = new LineEntity({ color: '#ffffff' });

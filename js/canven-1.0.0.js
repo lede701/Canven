@@ -62,11 +62,11 @@ function Canven(config) {
 	};
 
 	me.fpsUpdate = () => {
-		me._fpsCurr = me._fpsCnt;
-		me._simCurr = me._simCnt;
-		me._fpsCnt = 0;
-		me._simCnt = 0;
 		if (me.isReady) {
+			me._fpsCurr = me._fpsCnt;
+			me._simCurr = me._simCnt;
+			me._fpsCnt = 0;
+			me._simCnt = 0;
 			setTimeout(me.fpsUpdate, 1000);
 		}
 	};
@@ -115,6 +115,16 @@ function Canven(config) {
 
 		return rgb;
 	};
+
+	me.CreateRGB = (r,g,b) => {
+		let rgb = {
+			r: r, g: g, b: b, toString: function () {
+				return `${this.r},${this.b},${this.b}`;
+			}
+		}
+
+		return rgb;
+	}
 
 	me.IndexEntities = () => {
 		for (let i = 0; i < me.entityList.length; ++i) {
@@ -168,6 +178,9 @@ function Canven(config) {
 				// Need to check this will all entities
 				for (let j = i + 1; j < me.entityList.length; ++j) {
 					let other = me.entityList[j];
+					if (typeof (other.collider) == 'undefined' || other.collider == null) {
+						continue;
+					}
 					// Check if there was a hit
 					if (ent.collider.CheckHit(other)) {
 						// Hit detrected so tell the colliders to handle it
@@ -415,6 +428,7 @@ class Entity{
 		this.children = [];
 		this.effects = [];
 		this.name = "Entity";
+		this.Parent = null;
 		this.Position = new Vector2D(0, 0);
 		this.Rotation = 0;
 		this.RotationCenter = new Vector2D(0, 0);
@@ -422,7 +436,7 @@ class Entity{
 		this.Velocity = new Vector2D(0, 0);
 
 		Object.assign(this, config);
-	}
+	};
 
 	AddChild(child) {
 		let list = this.children;
@@ -431,30 +445,30 @@ class Entity{
 		list[list.length] = child;
 
 		return this;
-	}
+	};
 
 	AddEffect(effect) {
 		let idx = this.effects.length;
 		effect.id = idx;
 		this.effects[idx] = effect;
-	}
+	};
 
 	EngineDraw(ctx) { // DO NOT overload this method unless you know what the f*ck your doing!
-		// So am I qualified to write code in here?
+		// Start pre rendering tasks
 		ctx.save();
+		let pos = this.MyPos();
+		let mx = pos.x + this.RotationCenter.x;
+		let my = pos.y + this.RotationCenter.y;
+
+		ctx.translate(mx, my);
+
 		if (this.Rotation != 0) {
 			// Before we can rotate we need to translate the object to the rotation center
-			let move = new Vector2D(0, 0);
-			move.x = this.Position.x + this.RotationCenter.x;
-			move.y = this.Position.y + this.RotationCenter.y;
-			ctx.transform(move.x, move.y);
 			// Need to convert the rotation from degrees into radians
 			let radians = this.Rotation * (180 / Math.PI);
 			ctx.rotate(radians);
 		}
 
-		// First do a translate and see if we can get this to work
-		ctx.translate(this.Position.x, this.Position.y);
 		ctx.scale(this.Scale.x, this.Scale.y);
 
 		// Call the client entity draw routine now that the core engine code is ready
@@ -463,23 +477,42 @@ class Entity{
 		ctx.scale(1.0, 1.0);
 		ctx.translate(-this.Position.x, -this.Position.y);
 		ctx.restore();
-	}
+	};
 
 	Draw(ctx) {
 		console.error("No defined draw method for entity");
 		return this;
-	}
+	};
 
 	Init(config) {
 		Object.assign(this, config);
-	}
+	};
 
 	Move(deltaTime) {
 		this.Position.x += this.Velocity.x * deltaTime;
 		this.Position.y += this.Velocity.y * deltaTime;
 		return this;
 
+	};
+
+	RealPos() {
+		let pos = null;
+		if (this.Parent != null) {
+			pos = new Vector2D(this.Position.x, this.Position.y);
+			let parPos = this.Parent.RealPos();
+			pos.x += parPos.x;
+			pos.y += parPos.y;
+		} else
+		{
+			pos = this.Position;
+		}
+
+		return pos;
 	}
+
+	MyPos() {
+		return this.Position;
+	};
 }
 
 // There are several things we can do as an event system and so many different ways to do them.  For now
@@ -615,6 +648,16 @@ class Events {
 	KeyUp(handler) {
 		this.AddEventHandler('keyup', handler);
 	}
+}
+
+class Sprite extends Entity {
+	constructor(config) {
+		super(config);
+	};
+
+	Draw(ctx) {
+
+	};
 }
 
 class Vector2D {
