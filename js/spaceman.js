@@ -166,8 +166,8 @@ class Fighter extends Entity {
 		}
 
 		// We should now be able to move
-		this.Position.x += vx;
-		this.Position.y += vy;
+		this.Position.x += vx * deltaTime;
+		this.Position.y += vy * deltaTime;
 	};
 
 	Setup(world) {

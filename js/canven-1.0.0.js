@@ -381,6 +381,16 @@ class Controller {
 		this.keys = {}; // Create a blank object to store key mappings
 		this.keysDown = [];
 		Object.assign(this, config);
+
+		this.HandleKeyDown = (e) => {
+			e = e || windows.event;
+			this.keysDown[e.which] = true;
+		};
+
+		this.HandleKeyUp = (e) => {
+			e = e || windows.event;
+			this.keysDown[e.which] = false;
+		};
 	};
 
 	Init() {
@@ -405,17 +415,6 @@ class Controller {
 		return retVal;
 	};
 
-	// Handle the event when the key is pressed down
-	HandleKeyDown(e) {
-		e = e || windows.event;
-		this.keysDown[e.which] = true;
-	}
-
-	// Handle the event when the key is released
-	HandleKeyUp(e) {
-		e = e || windows.event;
-		this.keysDown[e.which] = false;
-	}
 
 	// Change of plan I want to make this function actually work since we do have the kep map in this object
 	HasInput(key) {
