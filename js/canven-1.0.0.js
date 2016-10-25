@@ -37,8 +37,22 @@ function Canven(config) {
 		let el = me.entityList;
 		let idx = el.length;
 		ent.Init({});
-		ent.id = idx;
+		ent.Id = idx;
 		el[idx] = ent;
+
+		// Check if there is a controller tied to the entity
+		if (typeof (ent.Controller) != 'undefined') {
+			let ctrl = ent.Controller;
+			ctrl.Init();
+			// We need to map the events to the controller
+			if (typeof (ctrl.HandleKeyDown)) {
+				this.Events.KeyDown(ctrl.HandleKeyDown);
+			}
+			if (typeof (ctrl.HandleKeyUp) != 'undefined') {
+				this.Events.KeyUp(ctrl.HandleKeyUp);
+			}
+		}
+
 	}
 
 	me.Clear = (ctx) => {
@@ -101,19 +115,15 @@ function Canven(config) {
 	};
 
 	me.HexToRGB = (hex) => {
-		let rgb = {
-			r: 0, g: 0, b: 0, toString: function () {
-				return `${this.r},${this.b},${this.b}`;
-		} };
 		if(hex[0] = '#'){
 			hex = hex.substring(1, hex.length).trim();
 		}
 
-		rgb.r = parseInt(hex.substr(0, 2), 16);
-		rgb.g = parseInt(hex.substr(2, 2), 16);
-		rgb.b = parseInt(hex.substr(4, 2), 16);
-
-		return rgb;
+		return me.CreateRGB(
+				parseInt(hex.substr(0, 2), 16),
+				parseInt(hex.substr(2, 2), 16),
+				parseInt(hex.substr(4, 2), 16)
+			);
 	};
 
 	me.CreateRGB = (r,g,b) => {
@@ -269,13 +279,13 @@ function Canven(config) {
 			// Going to see what the difference is if we test for collisions first before we move
 			me.Physics();
 			for (let i = 0; i < me.entityList.length; ++i) {
-				me.entityList[i].Move(me.deltaTime);
+				me.entityList[i].EngineMove(me.deltaTime);
 			}
 
 			let t1 = performance.now();
 			let waitTime = Math.max(1, (1000 / 120) - (t1 - t0));
 			setTimeout(me.Simulate, waitTime);
-			console.log(waitTime);
+			//console.log(waitTime);
 
 			// Calculate the deltaTime from this frame amount
 			me.deltaTime = Math.max(0, me._fpsCurr / me._simCurr);
@@ -366,6 +376,53 @@ function Canven(config) {
 	Object.assign(me, config);
 };
 
+class Controller {
+	constructor(config) {
+		this.keys = {}; // Create a blank object to store key mappings
+		this.keysDown = [];
+		Object.assign(this, config);
+	};
+
+	Init() {
+		// Initialize the keyDown array
+		for (let i = 0; i < 255; ++i) {
+			this.keysDown[i] = false;
+		}
+	};
+
+	// Check if a key state is down
+	KeyDown(key) {
+		let code = key;
+		// We should check and see if this is a mapped key code
+		if (typeof (this.keys[key]) != 'undefined') {
+			// Pull the key code from the key map
+			code = this.keys[key];
+		}
+		let retVal = false;
+		if (code >= 0 && code < 255) {
+			retVal = this.keysDown[code];
+		}
+		return retVal;
+	};
+
+	// Handle the event when the key is pressed down
+	HandleKeyDown(e) {
+		e = e || windows.event;
+		this.keysDown[e.which] = true;
+	}
+
+	// Handle the event when the key is released
+	HandleKeyUp(e) {
+		e = e || windows.event;
+		this.keysDown[e.which] = false;
+	}
+
+	// Change of plan I want to make this function actually work since we do have the kep map in this object
+	HasInput(key) {
+		return typeof (this.keys[key]) != 'undefined';
+	};
+}
+
 class Collider {
 	constructor(config) {
 		this.entity = null;
@@ -424,15 +481,18 @@ class EffectMultiply extends Effect {
 
 class Entity{
 	constructor(config) {
-		this.id = -1;
+		this._id = -1;
 		this.collider = null;
 		this.children = [];
+		this._debug = false;
 		this.effects = [];
+		this._layer = 1;
 		this.name = "Entity";
 		this.Parent = null;
 		this._position = new Vector2D(0, 0);
+		this._size = { height: 0, width: 0 }; // Create a new height and width object
 		this.Rotation = 0;
-		this.Pivot = new Vector2D(0, 0);
+		this._pivot = new Vector2D(0.5, 0.5); // Set default pivot point at the center of our object
 		this.Scale = new Vector2D(1, 1);
 		this.Velocity = new Vector2D(0, 0);
 
@@ -442,7 +502,9 @@ class Entity{
 	AddChild(child) {
 		let list = this.children;
 		let id = `${this.id}:${list.length}`;
-		child.Init({ id: id });
+		child.Init({});
+		child.Id = id;
+		child.Parent = this;
 		list[list.length] = child;
 
 		return this;
@@ -454,13 +516,31 @@ class Entity{
 		this.effects[idx] = effect;
 	};
 
+	get Debug() {
+		return this._debug;
+	};
+
+	set Debug(value) {
+		// Make sure debug is a boolean value
+		this._debug = value == true;
+	};
+	
+	Draw(ctx) {
+		console.error("No defined draw method for entity");
+		return this;
+	};
+
+	get Empty() {
+		return this.children.length == 0;
+	};
+
 	EngineDraw(ctx) { // DO NOT overload this method unless you know what the f*ck your doing!
 		// Start pre rendering tasks
 		ctx.save();
 		let pos = this.Position;
 		// Calculate the objects draw position.
-		let mx = pos.x + this.Pivot.x;
-		let my = pos.y + this.Pivot.y;
+		let mx = pos.x - (this.Pivot.x * this.Size.width);
+		let my = pos.y + (this.Pivot.y * this.Size.height);
 
 		ctx.translate(mx, my);
 
@@ -476,15 +556,14 @@ class Entity{
 		// Call the client entity draw routine now that the core engine code is ready
 		this.Draw(ctx);
 		// Process each child object
-		if (this.children.length > 0) {
-			for (let i = 0; i < this.children.length; ++i){
-				this.children[i].EngineDraw(ctx);
-			}
-		}
+		//if (this.children.length > 0) {
+		//	for (let i = 0; i < this.children.length; ++i) {
+		//		this.children[i].EngineDraw(ctx);
+		//	}
+		//}
 
 		ctx.scale(1.0, 1.0);
-		if (this.Rotation != 0)
-		{
+		if (this.Rotation != 0) {
 			let radians = this.Rotation * (180 / Math.PI);
 			ctx.rotate(-radians);
 		}
@@ -492,20 +571,60 @@ class Entity{
 		ctx.restore();
 	};
 
-	Draw(ctx) {
-		console.error("No defined draw method for entity");
-		return this;
+	EngineMove(deltaTime) {// Don't overload the engine move method unless you know what the F*ck your doing!!!
+		// First move myself
+		this.Move(deltaTime);
+		// Check if we have any children
+		if (!this.Empty) {
+			// Process each child move
+			for (let i = 0; i < this.children.length; ++i) {
+				this.children[i].EngineMove(deltaTime);
+			}// End for index loop
+		}// Endif children are not empty
+	};
+
+	get Id() {
+		return this._id;
+	};
+
+	set Id(value) {
+		this._id = value;
 	};
 
 	Init(config) {
 		Object.assign(this, config);
 	};
 
+	get Layer() {
+		return this._layer;
+	}
+
+	set Layer(value) {
+		this._layer = value;
+		// We need to resort the parent array
+		if (typeof (this.Parent) != 'undefined' && this.Parent != null) {
+			this.Parent.children.sort((a, b) => a._layer - b._layer);
+		}
+	}
+
 	Move(deltaTime) {
-		this.Position.x += this.Velocity.x * deltaTime;
-		this.Position.y += this.Velocity.y * deltaTime;
+		//this.Position.x += this.Velocity.x * deltaTime;
+		//this.Position.y += this.Velocity.y * deltaTime;
 		return this;
 
+	};
+
+	get Pivot() {
+		return this._pivot;
+	}
+
+	get Position() {
+		return this._position;
+	};
+
+	set Position(pos) {
+		this._position.x = pos.x;
+		this._position.y = pos.y;
 	};
 
 	get RealPos() {
@@ -523,14 +642,15 @@ class Entity{
 		return pos;
 	};
 
-	get Position() {
-		return this._position;
+	get Size() {
+		return this._size;
 	};
 
-	set Position(pos) {
-		this._position.x = pos.x;
-		this._position.y = pos.y;
-	};
+	set Size(value) {
+		// Validate value object properties
+		if (typeof (value.height) != 'undefined') this._size.height = value.height;
+		if (typeof (value.width) != 'undefined') this._size.width = value.width;
+	}
 
 }// End Entity Definition
 
@@ -754,7 +874,6 @@ class Events {
 	// Quick methods to add events to common event types
 	///////////////////////////////////////////////////////
 	Click(handler) {
-		console.log('Adding click handler');
 		this.AddEventHandler('click', handler);
 	};
 
