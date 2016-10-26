@@ -19,10 +19,10 @@
 * Oh wait a second how am I suppose to control this ship and target enemies?
 * So we will need a way for the player to control their awesome ship.  How about for now we make it easy and give them
 * some basic controls:
-*			[A] - Move the ship left
-*			[D] - Move the ship right
-*			[S] - Move the ship down / slow it down so we will need some reverse thrusters :D
-*			[W] - Move the ship forward / yeahaw booster time!
+*	[DONE]		[A] - Move the ship left
+*	[DONE]		[D] - Move the ship right
+*	[DONE]		[S] - Move the ship down / slow it down so we will need some reverse thrusters :D
+*	[DONE]		[W] - Move the ship forward / yeahaw booster time!
 *			[Space] - Fire laser guns!  Blow some sh*t up
 *			[Enter] - Fire missles to do radius damage
 * Be careful when programming this one because we could do some real damage with the enter key!
@@ -51,6 +51,13 @@
 
 * As the project progress we will update these design documents.
 
+//////////////////////////////////////////////////////////////////////
+// Bugs
+//////////////////////////////////////////////////////////////////////
+
+	1. When the laser is removed from the game world it will randomly delete another entity.  The first time this happened
+		the [A] button was removed the scond time the main space ship.
+
 //*/
 
 // First thing we need to do is connect our script to the page loaded event
@@ -73,7 +80,13 @@ function Spaceman()
 	let ship = new Fighter();
 	ship.Setup(engine.size);
 	ship.Controller = new KeyboardController();
+	ship.Engine = engine;
 	engine.AddEntity(ship);
+
+	SetupKeys(engine, 'A', 65, { x: 100, y: engine.size.y - 100 });
+	SetupKeys(engine, 'S', 83, { x: 140, y: engine.size.y - 100 });
+	SetupKeys(engine, 'D', 68, { x: 180, y: engine.size.y - 100 });
+	SetupKeys(engine, 'W', 87, { x: 140, y: engine.size.y - 140 });
 
 	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
@@ -89,6 +102,19 @@ function Spaceman()
 	});
 
 	engine.Run();
+}
+
+function SetupKeys(engine, char, code, pos) {
+	// Add visual keyboard so we can debug movement
+	let key = new KeySprite();
+	key.letter = char;
+	key.keyCode = code;
+	key.Position.x = pos.x;
+	key.Position.y = pos.y;
+	engine.AddEntity(key);
+
+	engine.Events.KeyDown(key.handleKeyDown);
+	engine.Events.KeyUp(key.handleKeyUp);
 }
 
 /////////////////////////////////////////
@@ -122,7 +148,18 @@ class Fighter extends Entity {
 		this.Speed = 5;
 		this.frameX = 0;
 		this.frameY = 0;
+		this.fireRate = 0.5;
+		this.nextFire = 0;
+		this._engine = null;
 	};
+
+	get Engine() {
+		return this._engine;
+	}
+
+	set Engine(value) {
+		this._engine = value;
+	}
 
 	Draw(ctx) {
 		// Why is the draw routine being called twice?
@@ -170,6 +207,18 @@ class Fighter extends Entity {
 			} else if (ctrl.KeyDown('left')) {
 				vx = -this.Speed;
 			}
+
+			if (ctrl.KeyDown('fire1') && performance.now() > this.nextFire) {
+				console.log('Fire lasers Mr. Scotty!');
+				this.nextFire = performance.now() + (this.fireRate * 1000);
+				// We need to spawn a laser and add it to the game engine
+				let laser = new Laser({});
+				laser.Position.x = this.Position.x;
+				laser.Position.y = this.Position.y;
+				laser.Engine = this.Engine;
+				laser.Color = '#3e7ded';
+				this.Engine.AddEntity(laser);
+			}
 		}
 
 		// if vel.x is 0 and the new vx is different we need to reset the frame count
@@ -204,6 +253,7 @@ class Fighter extends Entity {
 		// We should now be able to move
 		this.Position.x += mx * deltaTime;
 		this.Position.y += my * deltaTime;
+
 	};
 
 	Setup(world) {
@@ -230,4 +280,147 @@ class Fighter extends Entity {
 			console.error('Invalid controller!');
 		}
 	};
+};
+
+/////////////////////////////////////////
+// Key Feedback sprite
+////////////////////////////////////////
+
+class KeySprite extends Entity {
+	constructor(config) {
+		super(config);
+
+		this.letter = '';
+		this.keyCode = 0;
+		this.width = 30;
+		this.height = 30;
+		this.color = 'rgba(255,255,255,0.5)';
+		this.normalColor = 'rgba(255,255,255,0.5)';
+		this.downColor = 'rgba(255,255,80,0.8)';
+		this.textColor = 'rgba(255,255,255,1)';
+		this.font = "14pt Georgia";
+
+		this.handleKeyDown = (e) =>{
+			e = e || window.event;
+			if (e.which == this.keyCode) {
+				this.color = this.downColor;
+			}
+		};
+
+		this.handleKeyUp = (e) => {
+			e = e || window.event;
+			if (e.which == this.keyCode) {
+				this.color = this.normalColor;
+			}
+		};
+	}
+
+	Draw(ctx) {
+		let oldFont = ctx.font;
+		let oldStyle = ctx.fillStyle;
+
+		let x = -(this.width / 2);
+		let y = -(this.height / 2);
+		ctx.beginPath();
+		ctx.fillStyle = this.color;
+		ctx.rect(x, y, this.height, this.width);
+		ctx.closePath();
+		ctx.fill();
+
+		ctx.font = this.font;
+		ctx.fillStyle = this.textColor;
+		let width = ctx.measureText(this.letter).width;
+		let height = ctx.measureText('M').width;
+
+		// Try and center the letter in the box
+		let tx = -((this.width / 2) - (width / 2));
+		let ty = (this.height / 2) - (height / 2);
+		ctx.fillText(this.letter, tx, ty);
+
+		// Show some basic sprite debug code
+		if (this.Debug) {
+			let pos = this.Position;
+			let msg = `[${parseInt(pos.x)}, ${parseInt(pos.y)}]`;
+			let width = ctx.measureText(msg).width;
+			ctx.font = "8pt Georgia";
+			ctx.fillText(msg, x - (width / 4), -(y - 15));
+		}
+
+		ctx.font = oldFont;
+		ctx.fillStyle = oldStyle;
+	};
+};
+
+/////////////////////////////////////////
+// Laser sprite
+////////////////////////////////////////
+
+
+class Laser extends Entity {
+	constructor(config) {
+		super(config);
+		this._speed = 0;
+		this.width = 3;
+		this.height = 10;
+		this.alpha = 0.6;
+
+		this.color = `rgba(255,255,255,0.6)`;
+
+		this.Speed = -8;
+		this._engine = undefined;
+	};
+
+	get Color() {
+		return this.color;
+	}
+
+	set Color(value) {
+		if (typeof (this._engine) != 'undefined') {
+			let rgb = this.Engine.HexToRGB(value);
+			this.color = `rgba(${rgb.toString()},${this.alpha})`;
+			console.log(this.color);
+		}
+	}
+
+	get Engine() {
+		return this._engine;
+	}
+
+	set Engine(value) {
+		this._engine = value;
+	}
+
+	set Speed(value) {
+		this._speed = value;
+		this.Velocity.y = value;
+	}
+
+	Draw(ctx) {
+		let oldStyle = ctx.fillStyle;
+		// Calculate the center position of rectangle
+		let x = -(this.width / 2);
+		let y = -(this.height / 2);
+
+		// Start drawing the laser
+		ctx.beginPath();
+		ctx.fillStyle = this.color;
+		ctx.rect(x, y, this.width, this.height);
+		// Done drawing the rectangle/laser
+		ctx.closePath();
+		ctx.fill();
+		// Return fill back to original
+		ctx.fillStyle = oldStyle;
+	}
+
+	Move(deltaTime) {
+		// Well lasers go in one direction!
+		this.Position.y += this.Velocity.y * deltaTime;
+		// Just in case we want to make it move left to right some day
+		this.Position.x += this.Velocity.x * deltaTime;
+
+		if (this.Position.y < 50) {
+			this.Engine.RemoveEntity(this);
+		}
+	};
+
 };

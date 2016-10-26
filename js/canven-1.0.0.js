@@ -780,6 +780,7 @@ class Events {
 
 		this.handleClick = function (e) {
 			e = e || windows.event;
+			e.preventDefault();
 			// Example of how we are going to handle events
 			let evt = {
 				id: 0,
