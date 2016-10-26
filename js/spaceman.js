@@ -6,16 +6,16 @@
 * What is the Ganre? Topdown scroller
 * What is the premis?  You have just joined the Galaxysquad who sole purpose in life is to defent the universe from people
 *		like me who just want to send asteroids and aliens to kill everything in sight.
-* Now that we know were going to be a space jocky what are we going to do to me a hero?
+* Now that we know were going to be a space jocky what are we going to do to be a hero?
 * Shoot anything that isn't friendly!  Yikes with what?
-* Well we are going to give you a SLF-119 fighter which is equiped with a very powerful lazer gun.
-* Yeah anything esle?  I mean come on guys there isn't enough lazer power in the universe that can save us from the
+* Well, we are going to give you a SLF-119 fighter which is equiped with a very powerful laser gun.
+* Yeah anything esle?  I mean come on guys there isn't enough laser power in the universe that can save us from the
 * onslaught of enemies your going to throw at me!
 * Since you are such a big baby how about we add some VERY powerful missle to your arsinel?  Will that help you go forth
 * and desroy everything in your sights?
 * Err yes I guess so....
 
-* So now our journey begins.  We need to find a ship for the player that can shoot lazer guns and missles that blow sh*t up!
+* So now our journey begins.  We need to find a ship for the player that can shoot laser guns and missles that blow sh*t up!
 * Oh wait a second how am I suppose to control this ship and target enemies?
 * So we will need a way for the player to control their awesome ship.  How about for now we make it easy and give them
 * some basic controls:
@@ -23,7 +23,7 @@
 *	[DONE]		[D] - Move the ship right
 *	[DONE]		[S] - Move the ship down / slow it down so we will need some reverse thrusters :D
 *	[DONE]		[W] - Move the ship forward / yeahaw booster time!
-*			[Space] - Fire laser guns!  Blow some sh*t up
+*	[DONE]	[Space] - Fire laser guns!  Blow some sh*t up
 *			[Enter] - Fire missles to do radius damage
 * Be careful when programming this one because we could do some real damage with the enter key!
 
