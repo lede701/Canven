@@ -66,7 +66,7 @@ function Spaceman()
 	let engine = new Canven({
 		canvasId: 'theCanvas',
 		//_fpsShow: false,
-		clearClr: '#000000'
+		clearClr: '#00002a'
 	});
 	engine.Init();
 
@@ -119,6 +119,9 @@ class Fighter extends Entity {
 		this.Size = { width: 30, height: 80 };
 		this.Debug = true;
 		this._controller = undefined;
+		this.Speed = 5;
+		this.frameX = 0;
+		this.frameY = 0;
 	};
 
 	Draw(ctx) {
@@ -128,13 +131,16 @@ class Fighter extends Entity {
 		let y = -(this.Size.height / 2);
 		// TODO: move the RGBA color to a defined sprite color
 		ctx.fillStyle = 'rgba(255,255,255,255)';
+		ctx.beginPath();
 		ctx.rect(x, y, this.Size.width, this.Size.height);
+		ctx.closePath();
 		ctx.fill();
 
 		// Show some basic sprite debug code
 		if (this.Debug) {
+			let pos = this.Position;
 			let oldFont = ctx.font;
-			let msg = this.Position.toString();
+			let msg = `[${parseInt(pos.x)}, ${parseInt(pos.y)}]`;
 			let width = ctx.measureText(msg).width;
 			ctx.font = "8pt Georgia";
 			ctx.fillText(msg, x - (width / 4), -(y - 12));
@@ -146,28 +152,58 @@ class Fighter extends Entity {
 	};
 
 	Move(deltaTime) {
+		let vel = this.Velocity;
 		let vx = 0;
 		let vy = 0;
+		let spDrift = 60;
 		//Move can be so much fun!
 		if (typeof (this.Controller) != 'undefined') {
 			let ctrl = this.Controller;
 			if (ctrl.KeyDown('up')) {
-				vx = this.Velocity.x;
-			}else if(ctrl.KeyDown('down'))
-			{
-				vx = -this.Velocity.x;
+				vy = -1 * this.Speed;
+			} else if (ctrl.KeyDown('down')) {
+				vy = this.Speed;
 			}
 
 			if (ctrl.KeyDown('right')) {
-				vy = this.Velocity.y;
+				vx = this.Speed;
 			} else if (ctrl.KeyDown('left')) {
-				vy = -this.Velocity.y;
+				vx = -this.Speed;
 			}
 		}
 
+		// if vel.x is 0 and the new vx is different we need to reset the frame count
+
+		if (vx != vel.x) {
+			vx = lerp(this.frameX / spDrift, vel.x, vx);
+			this.frameX = (this.frameX + 1) % spDrift;
+			if (this.frameX == 0) {
+				if (vel.x == 0) {
+					vel.x = (vx / Math.abs(vx)) * this.Speed;
+				} else {
+					vel.x = 0;
+				}
+			}
+		}
+
+		if (vy != vel.y) {
+			vy = lerp(this.frameY / spDrift, vel.y, vy);
+			this.frameY = (this.frameY + 1) % spDrift;
+			if (this.frameY == 0) {
+				if (vel.y == 0) {
+					vel.y = (vy / Math.abs(vy)) * this.Speed;
+				} else {
+					vel.y = 0;
+				}
+			}
+		}
+
+		let mx = vx * deltaTime;
+		let my = vy * deltaTime;
+
 		// We should now be able to move
-		this.Position.x += vx * deltaTime;
-		this.Position.y += vy * deltaTime;
+		this.Position.x += mx * deltaTime;
+		this.Position.y += my * deltaTime;
 	};
 
 	Setup(world) {

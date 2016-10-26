@@ -289,6 +289,7 @@ function Canven(config) {
 
 			// Calculate the deltaTime from this frame amount
 			me.deltaTime = Math.max(0, me._fpsCurr / me._simCurr);
+			if (isNaN(me.deltaTime)) me.deltaTime = 0.5;
 			++me._simCnt;
 		}
 	};
@@ -899,4 +900,8 @@ class Vector2D {
 	toString() {
 		return `[${this.x}, ${this.y}]`;
 	}
+}
+
+function lerp(t, a, b) {
+	return (1 - t) * a + t * b;
 }
