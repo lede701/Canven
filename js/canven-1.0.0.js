@@ -39,6 +39,7 @@ function Canven(config) {
 		let idx = el.length;
 		ent.Init({});
 		ent.Id = idx;
+		ent.Parent = me;
 		el[idx] = ent;
 
 		// Check if there is a controller tied to the entity
@@ -686,11 +687,11 @@ class Entity{
 		// Call the client entity draw routine now that the core engine code is ready
 		this.Draw(ctx);
 		// Process each child object
-		//if (this.children.length > 0) {
-		//	for (let i = 0; i < this.children.length; ++i) {
-		//		this.children[i].EngineDraw(ctx);
-		//	}
-		//}
+		if (this.children.length > 0) {
+			for (let i = 0; i < this.children.length; ++i) {
+				this.children[i].EngineDraw(ctx);
+			}
+		}
 
 		ctx.scale(1.0, 1.0);
 		if (this.Rotation != 0) {
@@ -771,6 +772,16 @@ class Entity{
 
 		return pos;
 	};
+
+	RemoveChild(child) {
+		if (this.children.indexOf(child) >= 0) {
+			// Remove child from array
+			this.children.splice(this.children.indexOf(child), 1);
+		} else {
+			// Report the child isn't mine
+			console.error(`Child ${child.Id} is not mine! Doesn anyone know who his parent is?`);
+		}
+	}
 
 	get Size() {
 		return this._size;

@@ -119,7 +119,23 @@ function Spaceman()
 		SetupKeys(engine, 'W', 87, { x: 140, y: engine.size.y - 140 });
 	}
 
+	let particleRate = 200;
+	let nextFire = 0
+	let FireParticles = (e) => {
+		e = e || windows.event;
+		console.log(e);
+		if (performance.now() > nextFire) {
+			console.log('firing particles');
+			let p = new Particles({});
+			p.Position.x = e.clientX;
+			p.Position.y = e.clientY;
+			// I need the engine so after it is done we can remove it from the scene
+			engine.AddEntity(p);
+			nextFire = performance.now() + particleRate;
+		}
+	}
 
+	engine.Events.Click(FireParticles)
 
 	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
@@ -455,7 +471,6 @@ class KeySprite extends Entity {
 // Laser sprite
 ////////////////////////////////////////
 
-
 class Laser extends Entity {
 	constructor(config) {
 		super(config);
@@ -533,3 +548,96 @@ class Laser extends Entity {
 		}
 	};
 };
+
+/////////////////////////////////////////
+// Particle Entity
+////////////////////////////////////////
+class Particles extends Entity {
+	constructor(config) {
+		super(config);
+		this._maxParticles = 50;
+		this._particlesPerFrame = 20;
+		this.particleCount = 0;
+		this.name = "Particles Manager"
+		// Doing this so that we don't overwite settings while setting up the particles
+		Object.assign(this, config);
+	};
+
+	Draw(ctx) {
+		// Check if the current number of particles is greater than my max
+		if (this.Count < this._maxParticles) {
+			// How many particles am I suppose to release?  We can't exceed my max so make sure we have room.
+			let release = Math.min(this._particlesPerFrame, this._maxParticles - this.Count);
+			for (let i = 0; i < release; ++i) {
+				// Create a new particle
+				let p = new Particle();
+				this.AddChild(p);
+				++this.particleCount;
+			}
+		}
+		if (this.children.length == 0) {
+			this.Parent.RemoveEntity(this);
+		}
+	}
+
+	get Count() {
+		return this.particleCount;
+	}
+}
+
+class Particle extends Entity {
+	constructor(config) {
+		super(config);
+		this.rgba = {r: 255, g: 250, b: 200, a:1.0}
+		this.maxAge = parseInt(Math.random() * 30) + 10; // Max particle age
+		this.age = 0;
+		this.fadeAge = 10;
+		this.speed = 5;
+
+		Object.assign(this, config);
+		// Hmm this needs to be a range from -100 to 100
+		let speedXper = ((parseInt(Math.random() * 200) - 100) / 100);
+		let speedYper = ((parseInt(Math.random() * 200) - 100) / 100);
+		this.Velocity.x = this.speed * speedXper;
+		this.Velocity.y = this.speed * speedYper;
+	};
+
+	Draw(ctx) {
+		if (this.age++ < this.maxAge) {
+			let oldStyle = ctx.fillStyle;
+			// Check age of particle and see if we need to start fading
+			if (this.age >= this.fadeAge) {
+				let ageDiff = this.maxAge - this.fadeAge;// equal to 80
+				let currDiff = this.maxAge - this.age; // When age = 81 this will equal 79
+				this.rgba.a = ageDiff / currDiff;
+			}
+			let rgbVals = Object.values(this.rgba);
+			let clr = `rgba(${rgbVals.join(',')})`;
+
+			ctx.fillStyle = clr;
+			ctx.beginPath();
+			// Draw a 1 pixel size rectangle or in my case a particle
+			ctx.rect(0, 0, 1, 1);
+			ctx.closePath();
+			ctx.fill();
+
+			ctx.fillStyle = oldStyle;
+		}
+		if (this.IsDead) {
+			this.Parent.RemoveChild(this);
+		}
+	};
+
+	Move(deltaTime) {
+		if (this.age <= this.maxAge) {
+			this.Position.x += this.Velocity.x * deltaTime;
+			this.Position.y += this.Velocity.y * deltaTime;
+
+			this.Velocity.y += 0.2;
+		}
+	};
+
+	get IsDead() {
+		return this.age >= this.maxAge;
+	}
+}
