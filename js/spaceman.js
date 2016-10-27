@@ -27,6 +27,12 @@
 *			[Enter] - Fire missles to do radius damage
 * Be careful when programming this one because we could do some real damage with the enter key!
 
+* Weapons - The playerws spaceship will need to have power ups that can do the following:
+*	1. Add the number of lasers it fires in each round
+*	2. Speed up or slow down fire rate
+*	3. Change the type of laser guns the ship uses
+* These power ups will be dropped by the enemy at random intervals when they are descroyed.
+
 * So who are we going to fight?
 * Since you ask we are going to first start you out simple and have you clear the battle field of asteroids and debris.  Once
 * you understand how this all works we will send you one a few easy missions until your qualified to fight real ace pilots.
@@ -55,16 +61,27 @@
 // Bugs
 //////////////////////////////////////////////////////////////////////
 
-	1. When the laser is removed from the game world it will randomly delete another entity.  The first time this happened
-		the [A] button was removed the scond time the main space ship.
-		Fixed: The issue was in the remove entity core engine method.  I switched the way the entity array removes
-			items so now the object is used to find the index in the array.  Much fast at removing and more accurate.
-	2. When changing directions there is a smooth transition but then the ship stops and starts again.
+	1. When the laser is removed from the game world it will randomly delete another entity.  
+		The first time this happened the [A] button was removed the scond time the main space ship.
+		[Fixed]: The issue was in the remove entity core engine method.  I switched the way the 
+		entity array removes items so now the object is used to find the index in the array.  
+		Much fast at removing and more accurate.
+	2. When changing directions there is a smooth transition but then the ship stops and starts 
+		again. - We are going to work on this now!
+		[Fixed]: The issue was when the movement function would update the entity velocity to the
+		real ships velocity after the lerp was done.  The algorithm would ignore the new velocity
+		and when the lerp drift amount was complete it would check if the real velocity was 0 and
+		when it wasn't just kill the speed.  Storing the original change in velocity request in an
+		additional value allowed for the storing of the real velocity to occure because we checked
+		if it wasn't 0 then we want to store the new ships velocity.  Now we have smooth transitions
+		between direction changes.
+	3. When adding the asset manager as a module the import command caused a browser bug which
+		makes it hard to break the code into multiple files.  Need to research this process so
+		the game engine can be broken down into small files for easier management.
 
 //*/
 
 // First thing we need to do is connect our script to the page loaded event
-
 if (window.addEventListener) {
 	window.addEventListener('load', Spaceman, false);
 } else {
@@ -79,17 +96,30 @@ function Spaceman()
 		clearClr: '#00002a'
 	});
 	engine.Init();
+	// Start the asset loading process
+	console.log('Start loading assets!');
+	engine.Assets.Load('/assets/fighter.png').then(() => setup());
 
-	let ship = new Fighter();
-	ship.Setup(engine.size);
-	ship.Controller = new KeyboardController();
-	ship.Engine = engine;
-	engine.AddEntity(ship);
+	// Hmm so now the assets are loading we need a way once that is complete to build the first
+	// scene.  This is where the promise technique needs to be added to the asset system so we
+	// can do something like engine.Assets.Load(...).then( //build scene );
 
-	SetupKeys(engine, 'A', 65, { x: 100, y: engine.size.y - 100 });
-	SetupKeys(engine, 'S', 83, { x: 140, y: engine.size.y - 100 });
-	SetupKeys(engine, 'D', 68, { x: 180, y: engine.size.y - 100 });
-	SetupKeys(engine, 'W', 87, { x: 140, y: engine.size.y - 140 });
+	function setup() {
+		let ship = new Fighter({
+			image: engine.Assets['/assets/fighter.png']
+		});
+		ship.Setup(engine.size);
+		ship.Controller = new KeyboardController();
+		ship.Engine = engine;
+		engine.AddEntity(ship);
+
+		SetupKeys(engine, 'A', 65, { x: 100, y: engine.size.y - 100 });
+		SetupKeys(engine, 'S', 83, { x: 140, y: engine.size.y - 100 });
+		SetupKeys(engine, 'D', 68, { x: 180, y: engine.size.y - 100 });
+		SetupKeys(engine, 'W', 87, { x: 140, y: engine.size.y - 140 });
+	}
+
+
 
 	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
@@ -145,15 +175,28 @@ class KeyboardController extends Controller {
 class Fighter extends Entity {
 	constructor(config) {
 		super(config);
-		this.Size = { width: 30, height: 80 };
+		// We should really pull this from the image and then scale it down properly so we
+		// don't get image distortion
+		this.Size = { width: 80, height: 80 };
 		this.Debug = true;
 		this._controller = undefined;
-		this.Speed = 15;
+		this.Speed = 10;
 		this.frameX = 0;
 		this.frameY = 0;
-		this.fireRate = 0.3;
+		this.fireRate = 0.25; // This will be 4 shots per second
 		this.nextFire = 0;
 		this._engine = null;
+
+		if (typeof (this.image) != 'undefined' && this.image != null) {
+			this.Size.width = this.image.width;
+			this.Size.height = this.image.height;
+			let maxSize = 80;
+			if (this.Size.width > maxSize) {
+				let scale = maxSize / this.Size.width;
+				this.Size.width *= scale;
+				this.Size.height *= scale;
+			}
+		}
 	};
 
 	get Engine() {
@@ -169,21 +212,41 @@ class Fighter extends Entity {
 		let oldStyle = ctx.fillStyle;
 		let x = -(this.Size.width / 2)
 		let y = -(this.Size.height / 2);
-		// TODO: move the RGBA color to a defined sprite color
-		ctx.fillStyle = 'rgba(255,255,255,255)';
-		ctx.beginPath();
-		ctx.rect(x, y, this.Size.width, this.Size.height);
-		ctx.closePath();
-		ctx.fill();
+		let size = this.Size;
+
+		if (typeof (this.image) != 'undefined') {
+			// Calculate the image position
+			let sx = 0;
+			let sy = 0;
+			let sw = this.image.width;
+			let sh = this.image.height;
+
+			// Blit the sprite to the screen!
+			ctx.drawImage(this.image, sx, sy, sw, sh, x, y, size.width, size.height);
+		} else {
+			// TODO: move the RGBA color to a defined sprite color
+			ctx.fillStyle = 'rgba(255,255,255,255)';
+			ctx.beginPath();
+			ctx.rect(x, y, size.width, size.height);
+			ctx.closePath();
+			ctx.fill();
+		}
+
+
 
 		// Show some basic sprite debug code
 		if (this.Debug) {
 			let pos = this.Position;
 			let oldFont = ctx.font;
+			let oldStyle = ctx.fillStyle;
+
 			let msg = `[${parseInt(pos.x)}, ${parseInt(pos.y)}]`;
 			let width = ctx.measureText(msg).width;
+			ctx.fillStyle = 'rgba(255,255,255,0.8)';
 			ctx.font = "8pt Georgia";
-			ctx.fillText(msg, x - (width / 4), -(y - 12));
+			ctx.fillText(msg, x + (width/2) , -(y - 12));
+
+			ctx.fillStyle = oldStyle;
 			ctx.font = oldFont;
 		}
 
@@ -192,15 +255,16 @@ class Fighter extends Entity {
 	};
 
 	Move(deltaTime) {
+		// Calulate the ship movement based on the controller requests
 		let vel = this.Velocity;
 		let vx = 0;
 		let vy = 0;
-		let spDrift = 60;
-		//Move can be so much fun!
+		let spDrift = 20; // TODO: Move drift aka momentum and inertia using in the lerp method
+		//Moving can be so much fun!
 		if (typeof (this.Controller) != 'undefined') {
 			let ctrl = this.Controller;
 			if (ctrl.KeyDown('up')) {
-				vy = -1 * this.Speed;
+				vy = -this.Speed;
 			} else if (ctrl.KeyDown('down')) {
 				vy = this.Speed;
 			}
@@ -214,37 +278,55 @@ class Fighter extends Entity {
 			if (ctrl.KeyDown('fire1') && performance.now() > this.nextFire) {
 				console.log('Fire lasers Mr. Scotty!');
 				this.nextFire = performance.now() + (this.fireRate * 1000);
-				// We need to spawn a laser and add it to the game engine
-				let laser = new Laser({});
-				laser.Position.x = this.Position.x - (this.Size.width / 2);
-				laser.Position.y = this.Position.y;
-				laser.Engine = this.Engine;
-				laser.Color = '#3e7ded';
-				this.Engine.AddEntity(laser);
-			}
-		}
+
+				// We can change the fire patter by just changing the spawn position array
+				// As we progress the game should be able to change the firing array so that we
+				// can have different weapons that do different things
+				let offset = 22;
+				let pos = [
+					{ x: this.Position.x - (this.Size.width / 2) - offset, y: this.Position.y },
+					{ x: this.Position.x - (this.Size.width / 2) + offset, y: this.Position.y }
+				];
+				for (let i = 0; i < pos.length; ++i) {
+					let laser = new Laser({});
+					laser.Position.x = pos[i].x
+					laser.Position.y = pos[i].y;
+					// Define laser speed so that our ship can't out run its own shots
+					laser.Speed = -(this.Speed + 10);
+					laser.Engine = this.Engine;
+					laser.Color = '#3e7ded';
+					this.Engine.AddEntity(laser);
+				}// End for index of each laser's position
+			}// Endif fire1 is pressed
+		}// Endif controller is defined
+
 
 		// if vel.x is 0 and the new vx is different we need to reset the frame count
-
+		let diag = { x: vx, y: vy };
 		if (vx != vel.x) {
+			// Calculate the linear interpolation of the change in speed
 			vx = lerp(this.frameX / spDrift, vel.x, vx);
-			this.frameX = (this.frameX + 1) % spDrift;
+			this.frameX = (this.frameX + 1) % (spDrift);
 			if (this.frameX == 0) {
-				if (vel.x == 0) {
+				// Check to see if it is time to update the real velocity object
+				if (vel.x == 0 || diag.x != 0) {
 					vel.x = (vx / Math.abs(vx)) * this.Speed;
 				} else {
+					// There is no energy so lets kill the speed
 					vel.x = 0;
 				}
 			}
 		}
-
 		if (vy != vel.y) {
+			// Calculate the linear interpolation of the change in speed
 			vy = lerp(this.frameY / spDrift, vel.y, vy);
 			this.frameY = (this.frameY + 1) % spDrift;
 			if (this.frameY == 0) {
-				if (vel.y == 0) {
+				// Check to see if we have energy to apply to the real velocity
+				if (vel.y == 0 || diag.y != 0) {
 					vel.y = (vy / Math.abs(vy)) * this.Speed;
 				} else {
+					// There is no energy to deal with so shut movement down
 					vel.y = 0;
 				}
 			}
@@ -254,14 +336,29 @@ class Fighter extends Entity {
 		let my = vy * deltaTime;
 
 		// We should now be able to move
-		this.Position.x += mx * deltaTime;
-		this.Position.y += my * deltaTime;
+		this.Position.x += mx;
+		this.Position.y += my;
 
+		// TODO: Move this to setup
+		let gutter = this.gutter;
+
+		// We now need to make sure the ship doesn't fly outside the game screen boundary
+		if (this.Position.x < gutter.x) {
+			this.Position.x = gutter.x;
+		} else if (this.Position.x > gutter.width) {
+			this.Position.x = gutter.width;
+		}
+		if (this.Position.y < gutter.y) {
+			this.Position.y = gutter.y;
+		} else if (this.Position.y > gutter.height) {
+			this.Position.y = gutter.height;
+		}
 	};
 
 	Setup(world) {
 		this.Position.x = (world.x / 2) + (this.Size.width / 2);
-		this.Position.y = world.y - 200;
+		this.Position.y = world.y - 140;
+		this.gutter = { x: this.Size.width + (this.Size.width / 2), y: 250, width: world.x - (this.Size.width / 2), height: world.y - this.Size.height };
 	}
 
 	get Controller() {
@@ -435,5 +532,4 @@ class Laser extends Entity {
 			}
 		}
 	};
-
 };
