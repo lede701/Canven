@@ -34,26 +34,30 @@ function Canven(config) {
 	me.Events = null;
 	me.deltaTime = 0.5;
 
-	me.AddEntity = (ent) => {
+	me.AddEntity = (...ent) => {
 		let el = me.entityList;
-		let idx = el.length;
-		ent.Init({});
-		ent.Id = idx;
-		ent.Parent = me;
-		el[idx] = ent;
+		for (let i = 0; i < ent.length; ++i) {
+			let idx = el.length;
+			let e = ent[i];
+			e.Init({});
+			e.Id = idx;
+			e.Parent = me;
+			el[idx] = e;
 
-		// Check if there is a controller tied to the entity
-		if (typeof (ent.Controller) != 'undefined') {
-			let ctrl = ent.Controller;
-			ctrl.Init();
-			// We need to map the events to the controller
-			if (typeof (ctrl.HandleKeyDown)) {
-				this.Events.KeyDown(ctrl.HandleKeyDown);
-			}
-			if (typeof (ctrl.HandleKeyUp) != 'undefined') {
-				this.Events.KeyUp(ctrl.HandleKeyUp);
-			}
-		}
+			// Check if there is a controller tied to the entity
+			if (typeof (e.Controller) != 'undefined') {
+				let ctrl = e.Controller;
+				ctrl.Init();
+				// We need to map the events to the controller
+				if (typeof (ctrl.HandleKeyDown)) {
+					this.Events.KeyDown(ctrl.HandleKeyDown);
+				}
+				if (typeof (ctrl.HandleKeyUp) != 'undefined') {
+					this.Events.KeyUp(ctrl.HandleKeyUp);
+				}
+			}// Endif e.Controller is a valid controller 
+		}// End for index loop
+
 
 	}
 

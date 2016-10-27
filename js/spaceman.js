@@ -78,6 +78,7 @@
 	3. When adding the asset manager as a module the import command caused a browser bug which
 		makes it hard to break the code into multiple files.  Need to research this process so
 		the game engine can be broken down into small files for easier management.
+	4. When the game starts up some times the ship is set to NaN location.
 
 //*/
 
@@ -135,7 +136,8 @@ function Spaceman()
 		}
 	}
 
-	engine.Events.Click(FireParticles)
+	// This was to test the particle system
+	//engine.Events.Click(FireParticles)
 
 	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
@@ -311,7 +313,14 @@ class Fighter extends Entity {
 					laser.Speed = -(this.Speed + 10);
 					laser.Engine = this.Engine;
 					laser.Color = '#3e7ded';
-					this.Engine.AddEntity(laser);
+					// Hmm I think having some particle fly off the ships guns as it fires a
+					// laser might look cook.
+					let pfx = new Particles({ maxParticles: 5, particlesPerFrame: 5, maxAge: 5, fadeAge: 2 });
+					pfx.Position.x = pos[i].x;
+					pfx.Position.y = pos[i].y;
+					pfx.Velocity.x += this.Velocity.x;
+
+					this.Parent.AddEntity(laser, pfx);
 				}// End for index of each laser's position
 			}// Endif fire1 is pressed
 		}// Endif controller is defined
@@ -555,9 +564,11 @@ class Laser extends Entity {
 class Particles extends Entity {
 	constructor(config) {
 		super(config);
-		this._maxParticles = 50;
-		this._particlesPerFrame = 20;
+		this.maxParticles = 50;
+		this.particlesPerFrame = 20;
 		this.particleCount = 0;
+		this.maxAge = 200;
+		this.fadeAge = 10;
 		this.name = "Particles Manager"
 		// Doing this so that we don't overwite settings while setting up the particles
 		Object.assign(this, config);
@@ -565,12 +576,12 @@ class Particles extends Entity {
 
 	Draw(ctx) {
 		// Check if the current number of particles is greater than my max
-		if (this.Count < this._maxParticles) {
+		if (this.Count < this.maxParticles) {
 			// How many particles am I suppose to release?  We can't exceed my max so make sure we have room.
-			let release = Math.min(this._particlesPerFrame, this._maxParticles - this.Count);
+			let release = Math.min(this.particlesPerFrame, this.maxParticles - this.Count);
 			for (let i = 0; i < release; ++i) {
 				// Create a new particle
-				let p = new Particle();
+				let p = new Particle({ maxAge: this.maxAge, fadeAge: this.fadeAge });
 				this.AddChild(p);
 				++this.particleCount;
 			}
@@ -578,6 +589,11 @@ class Particles extends Entity {
 		if (this.children.length == 0) {
 			this.Parent.RemoveEntity(this);
 		}
+	}
+
+	Move(deltaTime) {
+		this.Position.x += this.Velocity.x * deltaTime;
+		this.Position.y += this.Velocity.y * deltaTime;
 	}
 
 	get Count() {
