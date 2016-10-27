@@ -215,28 +215,17 @@ function Canven(config) {
 				// Going the slow route to remove entities
 				for (let i = 0; i < me.deadEntities.length; ++i) {
 					// If I have more than one entity to remove this will get sticky
-					let idx = me.deadEntities[i].id;
-					for (let j = 0; j < me.entityList.length; ++j) {
-						if (me.entityList[j].id == idx) {
-							// Remove entity and stop looking
-							me.entityList.splice(j, 1);
-							break;
-						}
-					}
+					let ent = me.deadEntities[i]
+					me.entityList.splice(me.entityList.indexOf(ent), 1);
 				}
 				// Re index the entity list
 				me.IndexEntities();
-				me.deadEntities = [];
 			} else if (me.deadEntities.length == 1) {
-				// Yeah only one to remove
-				let idx = me.deadEntities[0].id;
-				// Remove entity
-				me.entityList.splice(idx, 1);
-				me.IndexEntities();
-				me.deadEntities = new Array();
+				me.entityList.splice(me.entityList.indexOf(me.deadEntities[0]), 1);
 			}
+			me.deadEntities = [];
 			me.removeByRun = false;
-		} else if(me.IsValidObject(entity)) {
+		} else if(me.IsValidObject(entity) && me.entityList.indexOf(entity)) {
 			// Don't just remove an entity until the proper time in the main game loop
 			// So for now going to add it to the delete pile
 			me.deadEntities[me.deadEntities.length] = entity;

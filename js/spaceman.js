@@ -57,6 +57,9 @@
 
 	1. When the laser is removed from the game world it will randomly delete another entity.  The first time this happened
 		the [A] button was removed the scond time the main space ship.
+		Fixed: The issue was in the remove entity core engine method.  I switched the way the entity array removes
+			items so now the object is used to find the index in the array.  Much fast at removing and more accurate.
+	2. When changing directions there is a smooth transition but then the ship stops and starts again.
 
 //*/
 
@@ -145,10 +148,10 @@ class Fighter extends Entity {
 		this.Size = { width: 30, height: 80 };
 		this.Debug = true;
 		this._controller = undefined;
-		this.Speed = 5;
+		this.Speed = 15;
 		this.frameX = 0;
 		this.frameY = 0;
-		this.fireRate = 0.5;
+		this.fireRate = 0.3;
 		this.nextFire = 0;
 		this._engine = null;
 	};
@@ -213,7 +216,7 @@ class Fighter extends Entity {
 				this.nextFire = performance.now() + (this.fireRate * 1000);
 				// We need to spawn a laser and add it to the game engine
 				let laser = new Laser({});
-				laser.Position.x = this.Position.x;
+				laser.Position.x = this.Position.x - (this.Size.width / 2);
 				laser.Position.y = this.Position.y;
 				laser.Engine = this.Engine;
 				laser.Color = '#3e7ded';
@@ -257,8 +260,8 @@ class Fighter extends Entity {
 	};
 
 	Setup(world) {
-		this.Position.x = 50;
-		this.Position.y = 300;
+		this.Position.x = (world.x / 2) + (this.Size.width / 2);
+		this.Position.y = world.y - 200;
 	}
 
 	get Controller() {
@@ -360,13 +363,16 @@ class Laser extends Entity {
 	constructor(config) {
 		super(config);
 		this._speed = 0;
-		this.width = 3;
-		this.height = 10;
+		this.width = 60;
+		this.height = 60;
 		this.alpha = 0.6;
+		this.isAlive = true;
+
+		this.Scale.x = 0.2;
 
 		this.color = `rgba(255,255,255,0.6)`;
 
-		this.Speed = -8;
+		this.Speed = -10;
 		this._engine = undefined;
 	};
 
@@ -378,7 +384,6 @@ class Laser extends Entity {
 		if (typeof (this._engine) != 'undefined') {
 			let rgb = this.Engine.HexToRGB(value);
 			this.color = `rgba(${rgb.toString()},${this.alpha})`;
-			console.log(this.color);
 		}
 	}
 
@@ -401,9 +406,14 @@ class Laser extends Entity {
 		let x = -(this.width / 2);
 		let y = -(this.height / 2);
 
+		let grad = ctx.createRadialGradient(0, 0, 1, 0, 0, 30);
+		grad.addColorStop(0, 'rgba(255,255,255,1)');
+		grad.addColorStop(0.2, this.color);
+		grad.addColorStop(1, 'rgba(0,0,0,0');
+
 		// Start drawing the laser
 		ctx.beginPath();
-		ctx.fillStyle = this.color;
+		ctx.fillStyle = grad;
 		ctx.rect(x, y, this.width, this.height);
 		// Done drawing the rectangle/laser
 		ctx.closePath();
@@ -413,13 +423,16 @@ class Laser extends Entity {
 	}
 
 	Move(deltaTime) {
-		// Well lasers go in one direction!
-		this.Position.y += this.Velocity.y * deltaTime;
-		// Just in case we want to make it move left to right some day
-		this.Position.x += this.Velocity.x * deltaTime;
+		if (this.isAlive) {
+			// Well lasers go in one direction!
+			this.Position.y += this.Velocity.y * deltaTime;
+			// Just in case we want to make it move left to right some day
+			this.Position.x += this.Velocity.x * deltaTime;
 
-		if (this.Position.y < 50) {
-			this.Engine.RemoveEntity(this);
+			if (this.Position.y < 50) {
+				this.Engine.RemoveEntity(this);
+				this.isAlive = false;
+			}
 		}
 	};
 
