@@ -41,7 +41,7 @@
 * Level 3 - Easy missions
 * Level 4 - Ace missions
 
-* So we are going to let you go from very to very hard in 4 steps.  Doesn't seem fair does it :D
+* So we are going to let you go from very easy to very hard in 4 levels.  Doesn't seem fair does it :D
 
 * Required Assets for the game
 *  1. Sprite sheet for main hero character the SLF-119
@@ -137,7 +137,7 @@ function Spaceman()
 	}
 
 	// This was to test the particle system
-	//engine.Events.Click(FireParticles)
+	engine.Events.Click(FireParticles)
 
 	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
@@ -625,15 +625,15 @@ class Particle extends Entity {
 			if (this.age >= this.fadeAge) {
 				let ageDiff = this.maxAge - this.fadeAge;// equal to 80
 				let currDiff = this.maxAge - this.age; // When age = 81 this will equal 79
-				this.rgba.a = ageDiff / currDiff;
+				this.rgba.a = parseInt(ageDiff / Math.max(1,currDiff));
 			}
-			let rgbVals = Object.values(this.rgba);
-			let clr = `rgba(${rgbVals.join(',')})`;
+			let rgb = this.rgba;
+			let clr = `rgba(${rgb.r},${rgb.g},${rgb.b},${rgb.a})`;
 
 			ctx.fillStyle = clr;
 			ctx.beginPath();
 			// Draw a 1 pixel size rectangle or in my case a particle
-			ctx.rect(0, 0, 1, 1);
+			ctx.rect(0, 0, 3, 3);
 			ctx.closePath();
 			ctx.fill();
 
