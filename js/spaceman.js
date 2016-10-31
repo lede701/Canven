@@ -79,6 +79,7 @@
 		makes it hard to break the code into multiple files.  Need to research this process so
 		the game engine can be broken down into small files for easier management.
 	4. When the game starts up some times the ship is set to NaN location.
+	5. When asteroids are deleted multiple objects get delted.
 
 //*/
 
@@ -99,7 +100,7 @@ function Spaceman()
 	engine.Init();
 	// Start the asset loading process
 	console.log('Start loading assets!');
-	engine.Assets.Load('/assets/fighter.png').then(() => setup());
+	engine.Assets.Load('/assets/fighter.png', '/assets/asteroid_01.png').then(() => setup());
 
 	// Hmm so now the assets are loading we need a way once that is complete to build the first
 	// scene.  This is where the promise technique needs to be added to the asset system so we
@@ -124,17 +125,23 @@ function Spaceman()
 	let nextFire = 0
 	let FireParticles = (e) => {
 		e = e || windows.event;
-		console.log(e);
 		if (performance.now() > nextFire) {
-			console.log('firing particles');
-			let p = new Particles({});
+			let p = new Particles({ maxParticles: 200 });
 			p.Position.x = e.clientX;
 			p.Position.y = e.clientY;
 			// I need the engine so after it is done we can remove it from the scene
 			engine.AddEntity(p);
 			nextFire = performance.now() + particleRate;
 		}
-	}
+	};
+
+	function AsteroidMe() {
+		let ast = new Asteroid({ spriteSheet: engine.Assets['/assets/asteroid_01.png'], MaxY: engine.size.y + 200 });
+		ast.Position.x = parseInt((Math.random() * (engine.size.x - 256)) + 128);
+		ast.Position.y = -100;
+
+		engine.AddEntity(ast);
+	};
 
 	// This was to test the particle system
 	engine.Events.Click(FireParticles)
@@ -144,6 +151,9 @@ function Spaceman()
 		switch (e.which) {
 			case 81:
 				engine.Close();
+				break;
+			case 13:
+				AsteroidMe();
 				break;
 			default:
 				console.info(`Key: ${e.which}`);
@@ -201,7 +211,7 @@ class Fighter extends Entity {
 		this.Speed = 10;
 		this.frameX = 0;
 		this.frameY = 0;
-		this.fireRate = 0.25; // This will be 4 shots per second
+		this.fireRate = 0.20; // This will be 4 shots per second
 		this.nextFire = 0;
 		this._engine = null;
 
@@ -250,7 +260,19 @@ class Fighter extends Entity {
 			ctx.fill();
 		}
 
+		// Create shield texture
+		let shield = ctx.createRadialGradient(0, 0, 1, 0, 0, 70);
+		shield.addColorStop(0, 'rgba(36,116,216,0');
+		shield.addColorStop(0.6, 'rgba(36,116,216,0.05');
+		shield.addColorStop(0.9, 'rgba(36,116,216,0.2');
+		shield.addColorStop(1, 'rgba(66,137,223,0.5');
 
+		// Draw shield over spaceship
+		ctx.fillStyle = shield;
+		ctx.beginPath();
+		ctx.arc(0, 0, 70, 0, Math.PI * 2);
+		ctx.closePath();
+		ctx.fill();
 
 		// Show some basic sprite debug code
 		if (this.Debug) {
@@ -301,9 +323,10 @@ class Fighter extends Entity {
 				// As we progress the game should be able to change the firing array so that we
 				// can have different weapons that do different things
 				let offset = 22;
+				let posX = this.Position.x - (this.Size.width / 2);
 				let pos = [
-					{ x: this.Position.x - (this.Size.width / 2) - offset, y: this.Position.y },
-					{ x: this.Position.x - (this.Size.width / 2) + offset, y: this.Position.y }
+					{ x: posX - offset, y: this.Position.y, dir: -1 },
+					{ x: posX + offset, y: this.Position.y, dir: 1 }
 				];
 				for (let i = 0; i < pos.length; ++i) {
 					let laser = new Laser({});
@@ -315,12 +338,13 @@ class Fighter extends Entity {
 					laser.Color = '#3e7ded';
 					// Hmm I think having some particle fly off the ships guns as it fires a
 					// laser might look cook.
-					let pfx = new Particles({ maxParticles: 5, particlesPerFrame: 5, maxAge: 5, fadeAge: 2 });
-					pfx.Position.x = pos[i].x;
-					pfx.Position.y = pos[i].y;
-					pfx.Velocity.x += this.Velocity.x;
+					let pfx = new Particles({ maxParticles: 3, particlesPerFrame: 5, maxAge: 5, fadeAge: 1 });
+					// Calulate particle position relitive to the ship
+					pfx.Position.x = offset * pos[i].dir;
+					pfx.Position.y = -45;
 
-					this.Parent.AddEntity(laser, pfx);
+					this.Parent.AddEntity(laser);
+					this.AddChild(pfx);
 				}// End for index of each laser's position
 			}// Endif fire1 is pressed
 		}// Endif controller is defined
@@ -406,6 +430,56 @@ class Fighter extends Entity {
 		}
 	};
 };
+
+/////////////////////////////////////////
+// Asteroid Sprite
+////////////////////////////////////////
+
+class Asteroid extends Entity {
+	constructor(config) {
+		super(config);
+		this.spriteSheet = undefined;
+
+		this.Velocity.y = 5;
+		this.Size.x = 128;
+		this.Size.y = 128;
+
+		this.MaxY = 1000;
+
+		Object.assign(this, config);
+	};
+
+	Draw(ctx) {
+		if (typeof (this.spriteSheet) != 'undefined') {
+			let x = -32;
+			let y = -32;
+			let sx = 0;
+			let sy = 0;
+			let sw = this.Size.x;
+			let sh = this.Size.y;
+
+			// Blit the sprite to the sDrawingcreen!
+			ctx.drawImage(this.spriteSheet, sx, sy, sw, sh, x, y, sw, sh);
+		}
+
+		return this;
+	};
+
+	Move(deltaTime) {
+		this.Position.x += this.Velocity.x * deltaTime;
+		this.Position.y += this.Velocity.y * deltaTime;
+
+		if (this.Position.y > this.MaxY) {
+			if (typeof (this.Parent.RemoveEntity) != 'undefined') {
+				this.Parent.RemoveEntity(this);
+			} else if (typeof (this.Parent.RemoveChild) != 'undefined') {
+				this.Parent.RemoveChild(this);
+			}
+		}
+
+		return this;
+	}
+}
 
 /////////////////////////////////////////
 // Key Feedback sprite
@@ -587,7 +661,11 @@ class Particles extends Entity {
 			}
 		}
 		if (this.children.length == 0) {
-			this.Parent.RemoveEntity(this);
+			if (typeof (this.Parent.RemoveEntity) != 'undefined') {
+				this.Parent.RemoveEntity(this);
+			} else if (typeof (this.Parent.RemoveChild) != 'undefined') {
+				this.Parent.RemoveChild(this);
+			}
 		}
 	}
 
@@ -609,6 +687,7 @@ class Particle extends Entity {
 		this.age = 0;
 		this.fadeAge = 10;
 		this.speed = 5;
+		this.radius = 1;
 
 		Object.assign(this, config);
 		// Hmm this needs to be a range from -100 to 100
@@ -633,14 +712,19 @@ class Particle extends Entity {
 			ctx.fillStyle = clr;
 			ctx.beginPath();
 			// Draw a 1 pixel size rectangle or in my case a particle
-			ctx.rect(0, 0, 3, 3);
+			ctx.arc(0, 0, this.radius, 0, 2 * Math.PI);
+			//ctx.rect(0, 0, 3, 3);
 			ctx.closePath();
 			ctx.fill();
 
 			ctx.fillStyle = oldStyle;
 		}
 		if (this.IsDead) {
-			this.Parent.RemoveChild(this);
+			if (typeof (this.Parent.RemoveEntity) != 'undefined') {
+				this.Parent.RemoveEntity(this);
+			} else if (typeof (this.Parent.RemoveChild) != 'undefined') {
+				this.Parent.RemoveChild(this);
+			}
 		}
 	};
 

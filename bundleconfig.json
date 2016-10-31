@@ -1,0 +1,15 @@
+[
+  {
+    "outputFileName": "js/library/library-1.0.1.js",
+    "inputFiles": [
+      "js/library/assets.js",
+      "js/library/entity.js"
+    ]
+  },
+  {
+    "outputFileName": "js/canven-1.0.0.min.js",
+    "inputFiles": [
+      "js/canven-1.0.0.js"
+    ]
+  }
+]
