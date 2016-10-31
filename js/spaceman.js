@@ -79,8 +79,23 @@
 		makes it hard to break the code into multiple files.  Need to research this process so
 		the game engine can be broken down into small files for easier management.
 	4. When the game starts up some times the ship is set to NaN location.
-	5. When asteroids are deleted multiple objects get delted.
+	5. When asteroids are deleted multiple objects get deleted.
+		[Fixed]: Not sure why but when not testing to see if an asteroid index was valid in the
+		entity array it would delete random items in the list.  Add this check to the remove
+		entity method and now the asteroids don't get removed until they are off screen.  Also
+		the buttons no longer are being removed.
 
+[Updates]
+
+10/31/2016 - Happy Holloween!  So today we added the star field in the background.  This is a semi
+	sudo particle effect type object but instead of using full particles we used a simple object
+	that then is added to the star field.
+
+	Next we added physics to all the game objects and put in initial physics handlers that
+	properly remove game objects based on their entity name.  We will probably change this to
+	be a entity tag or layer so we only have to check for one type of object instead of each name
+	of all the different enemies for the game.  The game also now will spawn waves of asteroids
+	until the play is killed or you quit.  Nothing special though.
 //*/
 
 // First thing we need to do is connect our script to the page loaded event
@@ -102,9 +117,7 @@ function Spaceman()
 	console.log('Start loading assets!');
 	engine.Assets.Load('/assets/fighter.png', '/assets/asteroid_01.png').then(() => setup());
 
-	// Hmm so now the assets are loading we need a way once that is complete to build the first
-	// scene.  This is where the promise technique needs to be added to the asset system so we
-	// can do something like engine.Assets.Load(...).then( //build scene );
+	// We need a way to start a wave of enemies/asteroids
 
 	function setup() {
 		let ship = new Fighter({
@@ -113,12 +126,21 @@ function Spaceman()
 		ship.Setup(engine.size);
 		ship.Controller = new KeyboardController();
 		ship.Engine = engine;
+
+		let fieldRect = { x: 0, y: 0, width: engine.size.x, height: engine.size.y };
+		let starField = new StarField({ fieldRect });
+		starField.Position.x = 0;
+		starField.Position.y = 0;
+		engine.AddEntity(starField);
+
 		engine.AddEntity(ship);
 
 		SetupKeys(engine, 'A', 65, { x: 100, y: engine.size.y - 100 });
 		SetupKeys(engine, 'S', 83, { x: 140, y: engine.size.y - 100 });
 		SetupKeys(engine, 'D', 68, { x: 180, y: engine.size.y - 100 });
 		SetupKeys(engine, 'W', 87, { x: 140, y: engine.size.y - 140 });
+
+		StartWave();
 	}
 
 	let particleRate = 200;
@@ -135,25 +157,43 @@ function Spaceman()
 		}
 	};
 
+	let WaveNumber = 0;
+	let waveCount = 0;
+	function StartWave() {
+		waveCount = 0;
+		setTimeout(AsteroidWave, 5000);
+		WaveNumber++;
+		console.log(`Starting Wave ${WaveNumber}`);
+	}
+
+	// Create a asteroid entity
 	function AsteroidMe() {
 		let ast = new Asteroid({ spriteSheet: engine.Assets['/assets/asteroid_01.png'], MaxY: engine.size.y + 200 });
 		ast.Position.x = parseInt((Math.random() * (engine.size.x - 256)) + 128);
-		ast.Position.y = -100;
+		ast.Position.y = -128;
 
 		engine.AddEntity(ast);
 	};
 
+	function AsteroidWave() {
+		AsteroidMe();
+		if (waveCount++ < (20 * WaveNumber)) {
+			// The time between asteroids shouldn't be static it makes for a very boaring wave
+			let timeout = parseInt(Math.random() * 800) + 300;
+			setTimeout(AsteroidWave, timeout);
+		} else {
+			StartWave();
+		}
+	}
+
 	// This was to test the particle system
-	engine.Events.Click(FireParticles)
+	//engine.Events.Click(FireParticles)
 
 	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
 		switch (e.which) {
 			case 81:
 				engine.Close();
-				break;
-			case 13:
-				AsteroidMe();
 				break;
 			default:
 				console.info(`Key: ${e.which}`);
@@ -197,6 +237,45 @@ class KeyboardController extends Controller {
 }
 
 /////////////////////////////////////////
+// Colliders
+////////////////////////////////////////
+
+class RadiusCollider extends Collider {
+	constructor(config) {
+		super(config);
+		this.radius = 5;
+		Object.assign(this, config);
+	};
+
+	HandleCollision(you) {
+		// For this collider type we don't have any physics resolutions to work out.
+		// All game logic will be handled by the Entities.
+		return undefined;
+	};
+
+	CheckHit(you) {
+		let ent = this.entity;
+		let myColl = ent.collider;
+		let youColl = you.collider;
+		// Setup the math variable we need
+		let youPos = you.Position;
+		let mePos = ent.Position;
+		// Calculate the square radius for both colliders
+		let youRaidus = youColl.radius * you.Scale.x;
+		let meRadius = myColl.radius * ent.Scale.x;
+
+		// Calculate the square distance for both colliders
+		let sqDiff = (Math.abs(mePos.x - youPos.x) * Math.abs(mePos.x - youPos.x)) +
+			(Math.abs(mePos.y - youPos.y) * Math.abs(mePos.y - youPos.y));
+		// Calculate the square of the radius
+		let sqRadius = (youRaidus + meRadius) * (youRaidus + meRadius);
+
+		// Report if there was a collision based on the square distance and sqaure raidus
+		return sqDiff < sqRadius;
+	};
+}
+
+/////////////////////////////////////////
 // Space ship definitions
 ////////////////////////////////////////
 
@@ -214,6 +293,28 @@ class Fighter extends Entity {
 		this.fireRate = 0.20; // This will be 4 shots per second
 		this.nextFire = 0;
 		this._engine = null;
+		this.shieldsUp = true;
+		this.name = 'Fighter';
+
+		this.HandleCollision = (other) => {
+			if (other.name != 'Laser') {
+				// We have been hit so time to kill ship shields
+				if (this.shieldsUp) {
+					this.shieldsUp = false;
+				} else {
+					if (typeof (this.Parent.RemoveEntity) != 'undefined') {
+						this.Parent.RemoveEntity(this);
+					}
+				}
+				console.log(other.name);
+			}
+		};
+
+		this.collider = new RadiusCollider({
+			entity: this,
+			radius: 70,
+			Callback: this.HandleCollision
+		});
 
 		if (typeof (this.image) != 'undefined' && this.image != null) {
 			this.Size.width = this.image.width;
@@ -229,11 +330,11 @@ class Fighter extends Entity {
 
 	get Engine() {
 		return this._engine;
-	}
+	};
 
 	set Engine(value) {
 		this._engine = value;
-	}
+	};
 
 	Draw(ctx) {
 		// Why is the draw routine being called twice?
@@ -260,19 +361,21 @@ class Fighter extends Entity {
 			ctx.fill();
 		}
 
-		// Create shield texture
-		let shield = ctx.createRadialGradient(0, 0, 1, 0, 0, 70);
-		shield.addColorStop(0, 'rgba(36,116,216,0');
-		shield.addColorStop(0.6, 'rgba(36,116,216,0.05');
-		shield.addColorStop(0.9, 'rgba(36,116,216,0.2');
-		shield.addColorStop(1, 'rgba(66,137,223,0.5');
+		if (this.shieldsUp) {
+			// Create shield texture
+			let shield = ctx.createRadialGradient(0, 0, 1, 0, 0, this.collider.radius);
+			shield.addColorStop(0, 'rgba(36,116,216,0');
+			shield.addColorStop(0.6, 'rgba(36,116,216,0.05');
+			shield.addColorStop(0.9, 'rgba(36,116,216,0.2');
+			shield.addColorStop(1, 'rgba(66,137,223,0.5');
 
-		// Draw shield over spaceship
-		ctx.fillStyle = shield;
-		ctx.beginPath();
-		ctx.arc(0, 0, 70, 0, Math.PI * 2);
-		ctx.closePath();
-		ctx.fill();
+			// Draw shield over spaceship
+			ctx.fillStyle = shield;
+			ctx.beginPath();
+			ctx.arc(0, 0, this.collider.radius, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.fill();
+		}
 
 		// Show some basic sprite debug code
 		if (this.Debug) {
@@ -284,7 +387,7 @@ class Fighter extends Entity {
 			let width = ctx.measureText(msg).width;
 			ctx.fillStyle = 'rgba(255,255,255,0.8)';
 			ctx.font = "8pt Georgia";
-			ctx.fillText(msg, x + (width/2) , -(y - 12));
+			ctx.fillText(msg, x + (width / 2), -(y - 12));
 
 			ctx.fillStyle = oldStyle;
 			ctx.font = oldFont;
@@ -408,7 +511,7 @@ class Fighter extends Entity {
 		this.Position.x = (world.x / 2) + (this.Size.width / 2);
 		this.Position.y = world.y - 140;
 		this.gutter = { x: this.Size.width + (this.Size.width / 2), y: 250, width: world.x - (this.Size.width / 2), height: world.y - this.Size.height };
-	}
+	};
 
 	get Controller() {
 		return this._controller;
@@ -445,6 +548,27 @@ class Asteroid extends Entity {
 		this.Size.y = 128;
 
 		this.MaxY = 1000;
+		this.name = 'Asteroid';
+		this.Debug = false;
+
+		// Defining function here for scope reasons.
+		// This needs to be defined before we define the collider
+		this.HandleCollision = (other) => {
+			// TODO: Add an explosion to the scene where I used to be.
+			// Need to delete myself from the game
+			if (typeof (this.Parent.RemoveEntity) != 'undefined') {
+				this.Parent.RemoveEntity(this);
+			} else if (typeof (this.Parent.RemoveChild) != 'undefined') {
+				this.Parent.RemoveChild(this);
+			}
+		};
+
+		this.collider = new RadiusCollider({
+			entity: this,
+			radius: 50,
+			Callback: this.HandleCollision
+		});
+
 
 		Object.assign(this, config);
 	};
@@ -460,6 +584,15 @@ class Asteroid extends Entity {
 
 			// Blit the sprite to the sDrawingcreen!
 			ctx.drawImage(this.spriteSheet, sx, sy, sw, sh, x, y, sw, sh);
+			// Used for debugging collisions
+			if (this.Debug) {
+				let oldStyle = ctx.fillStyle;
+				ctx.fillStyle = 'rgba(240, 0, 0, 0.3)';
+				ctx.beginPath();
+				ctx.arc(-x, -y, this.collider.radius, 0, Math.PI * 2);
+				ctx.closePath();
+				ctx.fill();
+			}
 		}
 
 		return this;
@@ -478,7 +611,7 @@ class Asteroid extends Entity {
 		}
 
 		return this;
-	}
+	};
 }
 
 /////////////////////////////////////////
@@ -499,7 +632,7 @@ class KeySprite extends Entity {
 		this.textColor = 'rgba(255,255,255,1)';
 		this.font = "14pt Georgia";
 
-		this.handleKeyDown = (e) =>{
+		this.handleKeyDown = (e) => {
 			e = e || window.event;
 			if (e.which == this.keyCode) {
 				this.color = this.downColor;
@@ -512,7 +645,7 @@ class KeySprite extends Entity {
 				this.color = this.normalColor;
 			}
 		};
-	}
+	};
 
 	Draw(ctx) {
 		let oldFont = ctx.font;
@@ -562,38 +695,44 @@ class Laser extends Entity {
 		this.height = 60;
 		this.alpha = 0.6;
 		this.isAlive = true;
+		this.name = 'Laser';
 
 		this.Scale.x = 0.2;
 
 		this.color = `rgba(255,255,255,0.6)`;
 
 		this.Speed = -10;
-		this._engine = undefined;
+
+		this.HandleCollision = (other) => {
+			// Check who we hit
+			if (other.name != 'Fighter') {
+				// We hit an enemey so kill the laser
+				this.RemoveMe();
+			}
+		};
+
+		this.collider = new RadiusCollider({
+			entity: this,
+			radius: 10,
+			Callback: this.HandleCollision
+		});
 	};
 
 	get Color() {
 		return this.color;
-	}
+	};
 
 	set Color(value) {
 		if (typeof (this._engine) != 'undefined') {
 			let rgb = this.Engine.HexToRGB(value);
 			this.color = `rgba(${rgb.toString()},${this.alpha})`;
 		}
-	}
-
-	get Engine() {
-		return this._engine;
-	}
-
-	set Engine(value) {
-		this._engine = value;
-	}
+	};
 
 	set Speed(value) {
 		this._speed = value;
 		this.Velocity.y = value;
-	}
+	};
 
 	Draw(ctx) {
 		let oldStyle = ctx.fillStyle;
@@ -615,7 +754,7 @@ class Laser extends Entity {
 		ctx.fill();
 		// Return fill back to original
 		ctx.fillStyle = oldStyle;
-	}
+	};
 
 	Move(deltaTime) {
 		if (this.isAlive) {
@@ -625,16 +764,117 @@ class Laser extends Entity {
 			this.Position.x += this.Velocity.x * deltaTime;
 
 			if (this.Position.y < 50) {
-				this.Engine.RemoveEntity(this);
+				this.RemoveMe();
 				this.isAlive = false;
 			}
+		}
+	};
+
+	RemoveMe() {
+		if (typeof (this.Parent.RemoveEntity) != 'undefined') {
+
+			this.Parent.RemoveEntity(this);
+		} else if (typeof (this.Parent.RemoveChild) != 'undefined') {
+			this.Parent.RemoveChild(this);
 		}
 	};
 };
 
 /////////////////////////////////////////
-// Particle Entity
+// Particle Entities
 ////////////////////////////////////////
+/*
+ * So the particles seem to be working perfectly.  Now we need a way so that the particles never
+ * get removed and can be our star effects.  So for this set of code we will create a new class
+ * called StarField.  Here is a list of features we will need it to do:
+ * - Create a bunch of stars with varying brightness and color.  Start with 100
+ * - The stars need to slowly move down the field so the ship looks like it is moving forward.
+ *		stars when they reach the bottom should be removed and new starts should be created to
+ *		take their place.
+ * Issue: When cranking the particles up to high on the star field it causes a major drop in
+ *		frames.  Both the physics system and the draw system slow down.  Need to think of a faster
+ *		algorithym to process more stars that won't degrade the frame rate
+ */
+
+function SimpleParticle() {
+	let sp = this;
+	sp.x = 0;
+	sp.y = 0;
+	sp.radius = 1;
+	sp.speed = 0.3;
+	sp.color = {
+		r: 255,
+		g: 255,
+		b: 255,
+		a: 1.0,
+		toString: () => { return `rgba(${sp.color.r},${sp.color.g},${sp.color.b},${sp.color.a})`; }
+	};
+}
+
+// It is best to set the star field to 0,0 when putting it on the scene stack
+class StarField extends Entity {
+	constructor(config) {
+		super(config);
+		// Changes to the number of particles has a major impact on the game engine
+		this.maxParticles = 100;
+		this.particleCount = 0;
+		this.maxAge = 200;
+		this.fadeAge = 10;
+		this.name = "Star Field"
+		this.fieldRect = { x: 10, y: -10, width: 1000, height: 900 };
+		this.Velocity.y = 0.3;
+		// Doing this so that we don't overwite settings while setting up the particles
+		Object.assign(this, config);
+
+		this.stars = [];
+		let rect = this.fieldRect;
+		for (let i = 0; i < this.maxParticles; ++i) {
+			let star = new SimpleParticle();
+			star.x = parseInt((Math.random() * (rect.width - rect.x)) + rect.x);
+			star.y = parseInt((Math.random() * (rect.height - rect.y)) + rect.y);
+			let alpha = (Math.random() * 2) - 1;
+			star.color.a = alpha;
+			star.speed = (Math.random() * 0.4) + 0.1;
+			this.stars.push(star);
+		}
+
+	};
+
+	Draw(ctx) {
+		if (this.stars.length > 0) {
+			let oldStyle = ctx.fillStyle;
+			// Calculate what two times PI so we don't have to do it every time
+			let PI2 = Math.PI * 2;
+			for (let i = 0; i < this.stars.length; ++i) {
+				let star = this.stars[i];
+				ctx.beginPath();
+				ctx.fillStyle = star.color.toString();
+				ctx.arc(star.x, star.y, star.radius, 0, PI2);
+				ctx.closePath();
+				ctx.fill();
+			}
+
+			ctx.fillStyle = oldStyle;
+		}
+
+		return this;
+	};
+
+	Move(deltaTime) {
+		// Need to move the stars now
+		for (let i = 0; i < this.stars.length; ++i) {
+			let s = this.stars[i];
+			let ny = (s.y + (s.speed * deltaTime)) % this.fieldRect.height;
+			s.y = ny;
+			if (ny >= 0 && ny <= s.speed) {
+				s.x = (Math.random() * (this.fieldRect.width - this.fieldRect.x)) + this.fieldRect.x;
+				s.color.a = (Math.random() * 2) - 1;
+				s.speed = (Math.random() * 0.4) + 0.1;
+			}
+		}
+	};
+}
+
 class Particles extends Entity {
 	constructor(config) {
 		super(config);
@@ -667,16 +907,16 @@ class Particles extends Entity {
 				this.Parent.RemoveChild(this);
 			}
 		}
-	}
+	};
 
 	Move(deltaTime) {
 		this.Position.x += this.Velocity.x * deltaTime;
 		this.Position.y += this.Velocity.y * deltaTime;
-	}
+	};
 
 	get Count() {
 		return this.particleCount;
-	}
+	};
 }
 
 class Particle extends Entity {
@@ -690,6 +930,8 @@ class Particle extends Entity {
 		this.radius = 1;
 
 		Object.assign(this, config);
+		// Set the special value for a particle that can never die
+		this.infiniteLige = -1;
 		// Hmm this needs to be a range from -100 to 100
 		let speedXper = ((parseInt(Math.random() * 200) - 100) / 100);
 		let speedYper = ((parseInt(Math.random() * 200) - 100) / 100);
@@ -698,13 +940,13 @@ class Particle extends Entity {
 	};
 
 	Draw(ctx) {
-		if (this.age++ < this.maxAge) {
+		if (this.age++ < this.maxAge || this.maxAge == this.infiniteLige) {
 			let oldStyle = ctx.fillStyle;
 			// Check age of particle and see if we need to start fading
 			if (this.age >= this.fadeAge) {
 				let ageDiff = this.maxAge - this.fadeAge;// equal to 80
 				let currDiff = this.maxAge - this.age; // When age = 81 this will equal 79
-				this.rgba.a = parseInt(ageDiff / Math.max(1,currDiff));
+				this.rgba.a = parseInt(ageDiff / Math.max(1, currDiff));
 			}
 			let rgb = this.rgba;
 			let clr = `rgba(${rgb.r},${rgb.g},${rgb.b},${rgb.a})`;
@@ -738,6 +980,6 @@ class Particle extends Entity {
 	};
 
 	get IsDead() {
-		return this.age >= this.maxAge;
-	}
+		return this.age >= this.maxAge && this.maxAge != this.infiniteLige;
+	};
 }

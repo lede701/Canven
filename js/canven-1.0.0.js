@@ -75,6 +75,7 @@ function Canven(config) {
 	};
 
 	me.Close = () => {
+		me.Clear(me.ctx);
 		me.isReady = false;
 		me.entityList = new Array();
 		me.deadEntities = new Array();
@@ -216,10 +217,17 @@ function Canven(config) {
 						//console.log(`Hit: ${ent.id} and ${other.id}`);
 						let entVel = ent.collider.HandleCollision(other);
 						let othVel = other.collider.HandleCollision(ent);
-						ent.Velocity.set(entVel.x, entVel.y);
-						other.Velocity.set(othVel.x, othVel.y);
+						if (typeof (entVel) != 'undefined') {
+							ent.Velocity.set(entVel.x, entVel.y);
+						}
+						if (typeof (othVel) != 'undefined') {
+							other.Velocity.set(othVel.x, othVel.y);
+						}
 						if (typeof (ent.collider.Callback) == 'function') {
 							ent.collider.Callback(other);
+						}
+						if (typeof (other.collider.Callback) == 'function') {
+							other.collider.Callback(ent);
 						}
 					}
 				}
@@ -230,19 +238,20 @@ function Canven(config) {
 	me.RemoveEntity = (entity) => {// Sorry fokes this is still O = n
 		if (me.removeByRun) {
 			// Check if we have more then one entity to delete
-			if (me.deadEntities.length > 1) {
+			if (me.deadEntities.length > 0) {
 				// Going the slow route to remove entities
 				for (let i = 0; i < me.deadEntities.length; ++i) {
 					// If I have more than one entity to remove this will get sticky
 					let ent = me.deadEntities[i]
-					me.entityList.splice(me.entityList.indexOf(ent), 1);
+					let idx = me.entityList.indexOf(ent);
+					if (idx >= 0) {
+						me.entityList.splice(idx, 1);
+					}
 				}
 				// Re index the entity list
 				me.IndexEntities();
-			} else if (me.deadEntities.length == 1) {
-				me.entityList.splice(me.entityList.indexOf(me.deadEntities[0]), 1);
+				me.deadEntities = [];
 			}
-			me.deadEntities = [];
 			me.removeByRun = false;
 		} else if(me.IsValidObject(entity) && me.entityList.indexOf(entity)) {
 			// Don't just remove an entity until the proper time in the main game loop
