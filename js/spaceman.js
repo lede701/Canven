@@ -80,10 +80,9 @@
 		the game engine can be broken down into small files for easier management.
 	4. When the game starts up some times the ship is set to NaN location.
 	5. When asteroids are deleted multiple objects get deleted.
-		[Fixed]: Not sure why but when not testing to see if an asteroid index was valid in the
-		entity array it would delete random items in the list.  Add this check to the remove
-		entity method and now the asteroids don't get removed until they are off screen.  Also
-		the buttons no longer are being removed.
+		[Fixed]: The original fix only fixed a few situations.  Changed it so the game play now is that after the hit the
+		ship is indestructable for 1 second.  This way we can prevent multiple enemies hammering the player.
+	6. When an asteroid hits the ship with the shields on the ship gets destroyed.
 
 [Updates]
 
@@ -110,7 +109,7 @@ function Spaceman()
 	let engine = new Canven({
 		canvasId: 'theCanvas',
 		//_fpsShow: false,
-		clearClr: '#00002a'
+		clearClr: '#00001a'
 	});
 	engine.Init();
 	// Start the asset loading process
@@ -121,7 +120,8 @@ function Spaceman()
 
 	function setup() {
 		let ship = new Fighter({
-			image: engine.Assets['/assets/fighter.png']
+			image: engine.Assets['/assets/fighter.png'],
+			Tag: 'Player'
 		});
 		ship.Setup(engine.size);
 		ship.Controller = new KeyboardController();
@@ -143,32 +143,24 @@ function Spaceman()
 		StartWave();
 	}
 
-	let particleRate = 200;
-	let nextFire = 0
-	let FireParticles = (e) => {
-		e = e || windows.event;
-		if (performance.now() > nextFire) {
-			let p = new Particles({ maxParticles: 200 });
-			p.Position.x = e.clientX;
-			p.Position.y = e.clientY;
-			// I need the engine so after it is done we can remove it from the scene
-			engine.AddEntity(p);
-			nextFire = performance.now() + particleRate;
-		}
-	};
-
 	let WaveNumber = 0;
 	let waveCount = 0;
 	function StartWave() {
-		waveCount = 0;
-		setTimeout(AsteroidWave, 5000);
-		WaveNumber++;
-		console.log(`Starting Wave ${WaveNumber}`);
+		if (engine.isReady) {
+			waveCount = 0;
+			setTimeout(AsteroidWave, 5000);
+			WaveNumber++;
+			console.log(`Starting Wave ${WaveNumber}`);
+		}
 	}
 
 	// Create a asteroid entity
 	function AsteroidMe() {
-		let ast = new Asteroid({ spriteSheet: engine.Assets['/assets/asteroid_01.png'], MaxY: engine.size.y + 200 });
+		let ast = new Asteroid({
+			spriteSheet: engine.Assets['/assets/asteroid_01.png'],
+			MaxY: engine.size.y + 200,
+			Tag: 'Enemy'
+		});
 		ast.Position.x = parseInt((Math.random() * (engine.size.x - 256)) + 128);
 		ast.Position.y = -128;
 
@@ -177,7 +169,7 @@ function Spaceman()
 
 	function AsteroidWave() {
 		AsteroidMe();
-		if (waveCount++ < (20 * WaveNumber)) {
+		if (waveCount++ < (20 * WaveNumber) && engine.isReady) {
 			// The time between asteroids shouldn't be static it makes for a very boaring wave
 			let timeout = parseInt(Math.random() * 800) + 300;
 			setTimeout(AsteroidWave, timeout);
@@ -185,9 +177,6 @@ function Spaceman()
 			StartWave();
 		}
 	}
-
-	// This was to test the particle system
-	//engine.Events.Click(FireParticles)
 
 	engine.Events.KeyUp((e) => {
 		e = e || windows.event;
@@ -254,6 +243,8 @@ class RadiusCollider extends Collider {
 	};
 
 	CheckHit(you) {
+		let retVal = false;
+
 		let ent = this.entity;
 		let myColl = ent.collider;
 		let youColl = you.collider;
@@ -265,13 +256,15 @@ class RadiusCollider extends Collider {
 		let meRadius = myColl.radius * ent.Scale.x;
 
 		// Calculate the square distance for both colliders
-		let sqDiff = (Math.abs(mePos.x - youPos.x) * Math.abs(mePos.x - youPos.x)) +
-			(Math.abs(mePos.y - youPos.y) * Math.abs(mePos.y - youPos.y));
+		let a2 = Math.abs(mePos.x - youPos.x);
+		let b2 = Math.abs(mePos.y - youPos.y);
+		let sqDiff = (a2 * a2) + (b2 * b2);
 		// Calculate the square of the radius
 		let sqRadius = (youRaidus + meRadius) * (youRaidus + meRadius);
+		retVal = sqDiff < sqRadius;
 
 		// Report if there was a collision based on the square distance and sqaure raidus
-		return sqDiff < sqRadius;
+		return retVal;
 	};
 }
 
@@ -295,18 +288,24 @@ class Fighter extends Entity {
 		this._engine = null;
 		this.shieldsUp = true;
 		this.name = 'Fighter';
+		this.Tag = 'none';
+
+		this.LastHit = -1;
 
 		this.HandleCollision = (other) => {
-			if (other.name != 'Laser') {
+			if (this.Tag != other.Tag && other.Tag != 'none') {
 				// We have been hit so time to kill ship shields
 				if (this.shieldsUp) {
 					this.shieldsUp = false;
-				} else {
+				} else if (this.LastHit < performance.now()) {
 					if (typeof (this.Parent.RemoveEntity) != 'undefined') {
 						this.Parent.RemoveEntity(this);
+						// We need to do a game over man function
+						this.Parent.Close();
 					}
 				}
-				console.log(other.name);
+				this.LastHit = performance.now() + 1000;
+				console.log(`${other.Tag}:${other.name}:${other.Id}`);
 			}
 		};
 
@@ -326,6 +325,8 @@ class Fighter extends Entity {
 				this.Size.height *= scale;
 			}
 		}
+
+		Object.assign(this, config);
 	};
 
 	get Engine() {
@@ -432,7 +433,7 @@ class Fighter extends Entity {
 					{ x: posX + offset, y: this.Position.y, dir: 1 }
 				];
 				for (let i = 0; i < pos.length; ++i) {
-					let laser = new Laser({});
+					let laser = new Laser({Tag: 'Player'});
 					laser.Position.x = pos[i].x
 					laser.Position.y = pos[i].y;
 					// Define laser speed so that our ship can't out run its own shots
@@ -550,16 +551,25 @@ class Asteroid extends Entity {
 		this.MaxY = 1000;
 		this.name = 'Asteroid';
 		this.Debug = false;
+		this.Tag = 'none';
 
 		// Defining function here for scope reasons.
 		// This needs to be defined before we define the collider
 		this.HandleCollision = (other) => {
 			// TODO: Add an explosion to the scene where I used to be.
-			// Need to delete myself from the game
-			if (typeof (this.Parent.RemoveEntity) != 'undefined') {
-				this.Parent.RemoveEntity(this);
-			} else if (typeof (this.Parent.RemoveChild) != 'undefined') {
-				this.Parent.RemoveChild(this);
+			// Check if we hit a different tag
+			if (this.Tag != other.Tag) {
+				if (other.Tag != 'none') {
+					// Need to delete myself from the game
+					if (typeof (this.Parent.RemoveEntity) != 'undefined') {
+						this.Parent.RemoveEntity(this);
+					} else if (typeof (this.Parent.RemoveChild) != 'undefined') {
+						this.Parent.RemoveChild(this);
+					}
+					this.collider.Callback = undefined;
+				}
+			} else {
+				// We hit a friendly object so we should change directions
 			}
 		};
 
@@ -631,6 +641,7 @@ class KeySprite extends Entity {
 		this.downColor = 'rgba(255,255,80,0.8)';
 		this.textColor = 'rgba(255,255,255,1)';
 		this.font = "14pt Georgia";
+		this.Tag = 'none';
 
 		this.handleKeyDown = (e) => {
 			e = e || window.event;
@@ -696,6 +707,7 @@ class Laser extends Entity {
 		this.alpha = 0.6;
 		this.isAlive = true;
 		this.name = 'Laser';
+		this.Tag = 'none';
 
 		this.Scale.x = 0.2;
 
@@ -716,6 +728,8 @@ class Laser extends Entity {
 			radius: 10,
 			Callback: this.HandleCollision
 		});
+
+		Object.assign(this, config);
 	};
 
 	get Color() {
@@ -821,6 +835,7 @@ class StarField extends Entity {
 		this.maxAge = 200;
 		this.fadeAge = 10;
 		this.name = "Star Field"
+		this.Tag = 'none';
 		this.fieldRect = { x: 10, y: -10, width: 1000, height: 900 };
 		this.Velocity.y = 0.3;
 		// Doing this so that we don't overwite settings while setting up the particles
@@ -884,6 +899,7 @@ class Particles extends Entity {
 		this.maxAge = 200;
 		this.fadeAge = 10;
 		this.name = "Particles Manager"
+		this.Tag = 'none';
 		// Doing this so that we don't overwite settings while setting up the particles
 		Object.assign(this, config);
 	};
