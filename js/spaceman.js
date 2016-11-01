@@ -131,10 +131,11 @@ function Spaceman()
 	engine.Init();
 	// Start the asset loading process
 	console.log('Start loading assets!');
-	engine.Assets.Load('/assets/fighter.png', '/assets/asteroid_01.png', '/assets/explosion.json').then(() => setup());
+	engine.Assets.Load('/assets/Itim-Regular.ttf', '/assets/fighter.png', '/assets/asteroid_01.png', '/assets/explosion.json').then(() => setup());
 
 	// We need a way to start a wave of enemies/asteroids
 	let Player = undefined;
+	let score = new Score();
 
 	function setup() {
 		player = new Fighter({
@@ -151,6 +152,10 @@ function Spaceman()
 		starField.Position.x = 0;
 		starField.Position.y = 0;
 		engine.AddEntity(starField);
+
+		score.Position = { x: engine.size.x - 200, y: 20 };
+
+		engine.AddEntity(score);
 
 		engine.AddEntity(player);
 
@@ -190,6 +195,7 @@ function Spaceman()
 		ast.Position.x = parseInt((Math.random() * (engine.size.x - 256)) + 128);
 		ast.Position.y = -128;
 		ast.Velocity.y = (Math.random() * 6) + 3;
+		ast.Callback = score.HandleScore;
 
 		engine.AddEntity(ast);
 	};
@@ -293,10 +299,10 @@ class RadiusCollider extends Collider {
 		// Report if there was a collision based on the square distance and sqaure raidus
 		return retVal;
 	};
-}
+};
 
 /////////////////////////////////////////
-// Space ship definitions
+// Player Objects
 ////////////////////////////////////////
 
 class Fighter extends Entity {
@@ -462,7 +468,7 @@ class Fighter extends Entity {
 				// As we progress the game should be able to change the firing array so that we
 				// can have different weapons that do different things
 				let offset = 22;
-				let posX = this.Position.x - (this.Size.width / 2);
+				let posX = this.Position.x;
 				let pos = [
 					{ x: posX - offset, y: this.Position.y, dir: -1 },
 					{ x: posX + offset, y: this.Position.y, dir: 1 }
@@ -570,6 +576,44 @@ class Fighter extends Entity {
 	};
 };
 
+class Score extends Entity {
+	constructor(config) {
+		super(config);
+
+		this.score = 0;
+		this.color = 'rgba(255,255,255,0.8)';
+		this.font = '14pt Itim-Regular';
+		this.Position = { x: 500, y: 50 };
+		
+		this.HandleScore = (who) => {
+			this.score += who.points;
+		};
+
+		Object.assign(this, config);
+	};
+
+	Draw(ctx) {
+		let oldStyle = ctx.fillStyle;
+		let oldFont = ctx.font;
+
+		ctx.font = this.font;
+		ctx.fillStyle = this.color;
+		let msg = `Score: ${this.score}`;
+		let width = ctx.measureText(msg).width;
+		let height = ctx.measureText('M').width;
+
+		let x = -(width / 2);
+		let y = -(height / 2);
+
+		ctx.fillText(msg, x, y);
+
+		
+		ctx.font = oldFont;
+		ctx.fillStyle = oldStyle;
+	};
+
+};
+
 /////////////////////////////////////////
 // Asteroid Sprite
 ////////////////////////////////////////
@@ -587,6 +631,7 @@ class Asteroid extends Entity {
 		this.name = 'Asteroid';
 		this.Debug = false;
 		this.Tag = 'none';
+		this.points = 15;
 
 		// Defining function here for scope reasons.
 		// This needs to be defined before we define the collider
@@ -623,6 +668,9 @@ class Asteroid extends Entity {
 						this.Parent.RemoveChild(this);
 					}
 					this.collider.Callback = undefined;
+					if (typeof (this.Callback) != 'undefined') {
+						this.Callback(this);
+					}
 				}
 			} else {
 				// We hit a friendly object so we should change directions
@@ -678,7 +726,7 @@ class Asteroid extends Entity {
 
 		return this;
 	};
-}
+};
 
 /////////////////////////////////////////
 // Key Feedback sprite
@@ -853,18 +901,6 @@ class Laser extends Entity {
 /////////////////////////////////////////
 // Particle Entities
 ////////////////////////////////////////
-/*
- * So the particles seem to be working perfectly.  Now we need a way so that the particles never
- * get removed and can be our star effects.  So for this set of code we will create a new class
- * called StarField.  Here is a list of features we will need it to do:
- * - Create a bunch of stars with varying brightness and color.  Start with 100
- * - The stars need to slowly move down the field so the ship looks like it is moving forward.
- *		stars when they reach the bottom should be removed and new starts should be created to
- *		take their place.
- * Issue: When cranking the particles up to high on the star field it causes a major drop in
- *		frames.  Both the physics system and the draw system slow down.  Need to think of a faster
- *		algorithym to process more stars that won't degrade the frame rate
- */
 
 function SimpleParticle() {
 	let sp = this;
@@ -879,7 +915,7 @@ function SimpleParticle() {
 		a: 1.0,
 		toString: () => { return `rgba(${sp.color.r},${sp.color.g},${sp.color.b},${sp.color.a})`; }
 	};
-}
+};
 
 // It is best to set the star field to 0,0 when putting it on the scene stack
 class StarField extends Entity {
@@ -944,7 +980,7 @@ class StarField extends Entity {
 			}
 		}
 	};
-}
+};
 
 class Particles extends Entity {
 	constructor(config) {
@@ -989,12 +1025,12 @@ class Particles extends Entity {
 	get Count() {
 		return this.particleCount;
 	};
-}
+};
 
 class Particle extends Entity {
 	constructor(config) {
 		super(config);
-		this.rgba = {r: 255, g: 250, b: 200, a:1.0}
+		this.rgba = { r: 255, g: 250, b: 200, a: 1.0 }
 		this.maxAge = parseInt(Math.random() * 30) + 10; // Max particle age
 		this.age = 0;
 		this.fadeAge = 10;
@@ -1054,7 +1090,7 @@ class Particle extends Entity {
 	get IsDead() {
 		return this.age >= this.maxAge && this.maxAge != this.infiniteLige;
 	};
-}
+};
 
 /**
 * Create a basic explosion based from the engine sprite system
@@ -1079,4 +1115,4 @@ function Explosion(config) {
 	};
 
 	return ex;
-}
+};

@@ -516,18 +516,24 @@ class Assets {
 		// Then if ctx is defined we will try and write the font name to the canvas
 		let fontName = file.split('/').pop().split('.')[0];
 		let newStyle = document.createElement("style");
+		newStyle.type = 'text/css';
 		let fontFace = `@font-face{font-family: ${fontName}; src: url('${file}');`;
-		newStyle.appendChild(fontFace);
+		if (newStyle.styleSheet) {
+			newStyle.styleSheet.cssText = fontFace;
+		} else {
+			newStyle.appendChild(document.createTextNode(fontFace));
+		}
 		document.head.appendChild(newStyle);
 		// Try and force the font to load by drawing it to the canvas
 		if (typeof (this.ctx) != 'undefined' && this.ctx != null) {
+			let ctx = this.ctx;
 			// Need to test this with a font to see if we will get it to work
 			let oldFont = ctx.font;
 			let oldStyle = ctx.fillStyle;
 			ctx.font = `12pt ${fontName}`;
 			ctx.fillStyle = 'rgba(0,0,0,1)';
 
-			ctx.fillText(fontName);
+			ctx.fillText(fontName, 100, 100);
 
 			ctx.font = oldFont;
 			ctx.fillStyle = oldStyle;
@@ -952,8 +958,6 @@ class Sprite extends Entity {
 				dest.w,
 				dest.h);
 		}
-
-		console.log(frame);
 	};
 }
 
