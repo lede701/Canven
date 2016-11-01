@@ -48,13 +48,18 @@
 *  2. Sprite sheets for asteroids
 *  3. Sprite sheets for debris
 *  4. Sprite sheet for alien space ship
-*  5. World texture map
-*  6. SOUND: Main Laser sounds
-*  7. SOUND: 5 different enemy explosions
-*  8. SOUND: main thrusters
-*  9. SOUND: reverse thrusters for main ship
-* 10. Etc...
-
+*  5. Special Effects: Explosions, Lasers, etc.
+*  6. World texture map
+*  7. SOUND: Main Laser sounds
+*  8. SOUND: 5 different enemy explosions
+*  9. SOUND: main thrusters
+* 10. SOUND: reverse thrusters for main ship
+* 11. Etc...
+*
+* Resources:
+* TexturePacker - https://www.codeandweb.com/sprite-sheet-maker?_cawex=2
+* Explosion Generator - http://explosiongenerator.com/
+*
 * As the project progress we will update these design documents.
 
 //////////////////////////////////////////////////////////////////////
@@ -83,6 +88,18 @@
 		[Fixed]: The original fix only fixed a few situations.  Changed it so the game play now is that after the hit the
 		ship is indestructable for 1 second.  This way we can prevent multiple enemies hammering the player.
 	6. When an asteroid hits the ship with the shields on the ship gets destroyed.
+		[Fixed]: Many games when you lose life will set a time out so the player is invulnerable for a few seconds which
+		has now been added to the collision handeler for the ship.
+	7. It seems that after the shields have been lost when we get to close to an asteroid it
+		will register a hit even though we aren't that close.
+	8. Shield is turning on just before the end of current wave. This has a lot to do with timing
+		and where we want to start the dropping of the next wave of asteroids. We will want to 
+		add a startup wave function where we can turn on the shields after the wait time has
+		completed for the in between waves.
+		[Fixed]: The timming of when the start of the wave needed to be broken out into two 
+		functions.  The first function would update the wave information and then set the timeout
+		for the start of the wave.  In the start we turn the shields on and call the asteroid
+		spawing system.
 
 [Updates]
 
@@ -114,18 +131,20 @@ function Spaceman()
 	engine.Init();
 	// Start the asset loading process
 	console.log('Start loading assets!');
-	engine.Assets.Load('/assets/fighter.png', '/assets/asteroid_01.png').then(() => setup());
+	engine.Assets.Load('/assets/fighter.png', '/assets/asteroid_01.png', '/assets/explosion.json').then(() => setup());
 
 	// We need a way to start a wave of enemies/asteroids
+	let Player = undefined;
 
 	function setup() {
-		let ship = new Fighter({
+		player = new Fighter({
 			image: engine.Assets['/assets/fighter.png'],
-			Tag: 'Player'
+			Tag: 'Player',
+			Debug: false
 		});
-		ship.Setup(engine.size);
-		ship.Controller = new KeyboardController();
-		ship.Engine = engine;
+		player.Setup(engine.size);
+		player.Controller = new KeyboardController();
+		player.Engine = engine;
 
 		let fieldRect = { x: 0, y: 0, width: engine.size.x, height: engine.size.y };
 		let starField = new StarField({ fieldRect });
@@ -133,36 +152,44 @@ function Spaceman()
 		starField.Position.y = 0;
 		engine.AddEntity(starField);
 
-		engine.AddEntity(ship);
+		engine.AddEntity(player);
 
 		SetupKeys(engine, 'A', 65, { x: 100, y: engine.size.y - 100 });
 		SetupKeys(engine, 'S', 83, { x: 140, y: engine.size.y - 100 });
 		SetupKeys(engine, 'D', 68, { x: 180, y: engine.size.y - 100 });
 		SetupKeys(engine, 'W', 87, { x: 140, y: engine.size.y - 140 });
 
-		StartWave();
+		SetupWave();
 	}
 
 	let WaveNumber = 0;
 	let waveCount = 0;
-	function StartWave() {
+	function SetupWave() {
 		if (engine.isReady) {
+			setTimeout(StartWave, 5000);
 			waveCount = 0;
-			setTimeout(AsteroidWave, 5000);
 			WaveNumber++;
 			console.log(`Starting Wave ${WaveNumber}`);
 		}
-	}
+	};
+
+	function StartWave() {
+		// Turn shields on for each wave
+		player.shieldsUp = true;
+		AsteroidWave();
+	};
 
 	// Create a asteroid entity
 	function AsteroidMe() {
 		let ast = new Asteroid({
 			spriteSheet: engine.Assets['/assets/asteroid_01.png'],
 			MaxY: engine.size.y + 200,
-			Tag: 'Enemy'
+			Tag: 'Enemy',
+			Debug: false
 		});
 		ast.Position.x = parseInt((Math.random() * (engine.size.x - 256)) + 128);
 		ast.Position.y = -128;
+		ast.Velocity.y = (Math.random() * 6) + 3;
 
 		engine.AddEntity(ast);
 	};
@@ -174,7 +201,7 @@ function Spaceman()
 			let timeout = parseInt(Math.random() * 800) + 300;
 			setTimeout(AsteroidWave, timeout);
 		} else {
-			StartWave();
+			SetupWave();
 		}
 	}
 
@@ -278,7 +305,7 @@ class Fighter extends Entity {
 		// We should really pull this from the image and then scale it down properly so we
 		// don't get image distortion
 		this.Size = { width: 80, height: 80 };
-		this.Debug = true;
+		this.Debug = false;
 		this._controller = undefined;
 		this.Speed = 10;
 		this.frameX = 0;
@@ -304,11 +331,12 @@ class Fighter extends Entity {
 						this.Parent.Close();
 					}
 				}
+				// Record time so we know how long the ship will be invulnerable
 				this.LastHit = performance.now() + 1000;
-				console.log(`${other.Tag}:${other.name}:${other.Id}`);
 			}
 		};
 
+		// Create a collider for the ship
 		this.collider = new RadiusCollider({
 			entity: this,
 			radius: 70,
@@ -392,6 +420,13 @@ class Fighter extends Entity {
 
 			ctx.fillStyle = oldStyle;
 			ctx.font = oldFont;
+
+			// Draw collider over the space ship
+			ctx.fillStyle = 'rgba(0,250,0,0.2)';
+			ctx.beginPath();
+			ctx.arc(0, 0, this.collider.radius, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.fill();
 		}
 
 		ctx.fillStyle = oldStyle;
@@ -560,6 +595,27 @@ class Asteroid extends Entity {
 			// Check if we hit a different tag
 			if (this.Tag != other.Tag) {
 				if (other.Tag != 'none') {
+					// We need to get the explosion assets
+					let Data = this.Assets['/assets/explosion.json'];
+					// Spawn an explosion because we hit something
+					let ex = Explosion({ Data });
+					// Testing if we can set the object position from my position
+					ex.Position = this.Position;
+					ex.Position.x -= 256;
+					ex.Position.y -= 256;
+					ex.Scale = { x: 2, y: 2 };
+					// Try and find the AddEntity method
+					let p = this.Parent;
+					while (typeof (p.AddEntity) == 'undefined') {
+						p = p.Parent;
+						if (typeof (p) == 'undefined') {
+							log.error(`Unable to find AddEntity in parent tree ${this.name}`);
+						}
+					}
+					if (typeof (p) != 'undefined') {
+						p.AddEntity(ex);
+					}
+
 					// Need to delete myself from the game
 					if (typeof (this.Parent.RemoveEntity) != 'undefined') {
 						this.Parent.RemoveEntity(this);
@@ -998,4 +1054,29 @@ class Particle extends Entity {
 	get IsDead() {
 		return this.age >= this.maxAge && this.maxAge != this.infiniteLige;
 	};
+}
+
+/**
+* Create a basic explosion based from the engine sprite system
+**/
+
+function Explosion(config) {
+	// Create a new sprite and return it to caller
+	let ex = new Sprite(config);
+	// Keep the Draw method for sprite around so it can still be used to draw sprite
+	ex.OriginalDraw = ex.Draw;
+	ex.Draw = (ctx) => {
+		ex.OriginalDraw(ctx);
+		// Check when current frame is past the sprite animation
+		if (ex.currentFrame++ > ex.Data.frames.length) {
+			// Sprite is done so time to remove it from the game
+			if (typeof (ex.Parent.RemoveEntity) != 'undefined') {
+				ex.Parent.RemoveEntity(ex);
+			} else if (typeof (ex.Parent.RemoveChild) != 'undefined') {
+				ex.Parent.RemoveChild(ex);
+			}
+		}
+	};
+
+	return ex;
 }

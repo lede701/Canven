@@ -420,21 +420,20 @@ class Assets {
 	// file loads.
 	Load(...files) {
 		return new Promise(resolve => {
-			let loadHandler = () => {
-				this.loaded += 1;
-				if (this.loaded == this.toLoad) {
-					// Reset the load tracking system
-					this.loaded = 0;
-					this.toLoad = 0;
-
+			let loaded = 0;
+			let toLoad = files.length;
+			let loadHandler = (file) => {
+				if (++loaded == toLoad) {
 					// We will want to complete the promise now that everything is loaded
 					resolve();
 				}
-				// We should know that an assets was successfully loaded
-				console.log(`Assets loaded.`);
+
+				// Report that we loaded an asset to the engine
+				console.log(`Asset loaded. ${file}`);
 			};
 
-			this.toLoad += files.length;
+			this.toLoad += toLoad;
+
 			while (files.length > 0) {
 				let file = files.pop();
 				let ext = file.split('.').pop();
@@ -462,7 +461,7 @@ class Assets {
 	LoadImage(file, loadHandler) {
 		let img = new Image();
 		// Connect the load event to our event handler
-		img.addEventListener('load', loadHandler, false);
+		img.addEventListener('load', loadHandler.bind(null, file), false);
 		// Store image in the asset list
 		this[file] = img;
 		// Start the image loading process
@@ -476,7 +475,7 @@ class Assets {
 		xhr.open('GET', file, true);
 		// Let system know we want a text file
 		xhr.responseType = 'text';
-		xnh.onload = event => {
+		xhr.onload = event => {
 			if (xhr.status == 200) {
 				// Parse the server response
 				let data = JSON.parse(xhr.responseText);
@@ -484,7 +483,23 @@ class Assets {
 				data.name = file;
 				// Store our loaded data!
 				this[file] = data;
-				loadHandler();
+
+				if (typeof (data.frames) != 'undefined') {
+					// A sprite sheet was just loaded, we need to now load the image
+					let dir = file.split('/');
+					dir.pop();
+					dir = dir.join('/');
+					let imgFile = dir + `/${data.meta.image}`;
+					// Pass the image file to our load function but right now it isn't letting the
+					// load process to finish
+					this.Load(imgFile).then(() => {
+						// Add the sprite sheet to the data object
+						this[file]['spritesheet'] = this[imgFile];
+						loadHandler(file);
+					});
+				} else {
+					loadHandler(file);
+				}
 			}
 		};
 		xhr.send();
@@ -493,7 +508,7 @@ class Assets {
 	LoadAudio(file, loadHandler) {
 		// Will update this when I have some audio files to load for now it is just a stub
 		this[file] = undefined;
-		loadHandler();
+		loadHandler(file);
 	};
 
 	LoadFont(file, loadHandler) {
@@ -517,7 +532,7 @@ class Assets {
 			ctx.font = oldFont;
 			ctx.fillStyle = oldStyle;
 		}
-		loadHandler();
+		loadHandler(file);
 	};
 };
 
@@ -660,6 +675,20 @@ class Entity{
 		this.effects[idx] = effect;
 	};
 
+	get Assets() {
+		// Try and find Canven in hierarchy
+		let p = this.Parent;
+		while (typeof (p.Assets) == 'undefined') {
+			p = p.Parent;
+			// Couldn't find Canven in the hierarchy so kill search!
+			if (typeof (p) == 'undefined') {
+				console.error('Could not find Assets Manager in hierarchy!');
+				break;
+			}
+		}
+		return p.Assets;
+	}
+
 	get Debug() {
 		return this._debug;
 	};
@@ -683,8 +712,8 @@ class Entity{
 		ctx.save();
 		let pos = this.Position;
 		// Calculate the objects draw position.
-		let mx = pos.x - (this.Pivot.x * this.Size.width);
-		let my = pos.y + (this.Pivot.y * this.Size.height);
+		let mx = pos.x;// - (this.Pivot.x * this.Size.width);
+		let my = pos.y;// + (this.Pivot.y * this.Size.height);
 
 		ctx.translate(mx, my);
 
@@ -899,10 +928,32 @@ class Rectangle extends Entity {
 class Sprite extends Entity {
 	constructor(config) {
 		super(config);
+		this.Data = undefined;
+		this.currentFrame = 0;
+
+		Object.assign(this, config);
 	};
 
 	Draw(ctx) {
+		let frame = this.Data.frames[this.currentFrame];
+		if (typeof (frame) != 'undefined') {
+			let dest = frame.spriteSourceSize;
+			let pos = frame.frame;
+			let img = this.Data.spritesheet;
 
+			// Try and draw the sprite
+			ctx.drawImage(img,
+				pos.x,
+				pos.y,
+				pos.w,
+				pos.h,
+				dest.x,
+				dest.y,
+				dest.w,
+				dest.h);
+		}
+
+		console.log(frame);
 	};
 }
 
