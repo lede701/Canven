@@ -131,7 +131,7 @@ function Spaceman()
 	engine.Init();
 	// Start the asset loading process
 	console.log('Start loading assets!');
-	engine.Assets.Load('/assets/Itim-Regular.ttf', '/assets/fighter.png', '/assets/asteroid_01.png', '/assets/explosion.json').then(() => setup());
+	engine.Assets.Load('/assets/Itim-Regular.ttf', '/assets/fighter.png', '/assets/asteroid_01.png', '/assets/explosion.json', '/assets/explosion.wav').then(() => setup());
 
 	// We need a way to start a wave of enemies/asteroids
 	let Player = undefined;

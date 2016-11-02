@@ -506,6 +506,17 @@ class Assets {
 	};
 
 	LoadAudio(file, loadHandler) {
+		// Create a sound buffer
+		let buff;
+		let xhr = new XMLHttpRequest();
+		xhr.open('GET', file, true);
+		xhr.responseType = 'arraybuffer';
+
+		xhr.addEventListener('load', (e) => {
+
+		}, false)
+		xhr.send();
+
 		// Will update this when I have some audio files to load for now it is just a stub
 		this[file] = undefined;
 		loadHandler(file);
@@ -641,7 +652,7 @@ class EffectMultiply extends Effect {
 		this.name = "Multiply Effect";
 		// For a simple effect this is all we have to do :D
 		this.effectType = "multiply";
-	}
+	};
 }
 
 class Entity{
@@ -1110,6 +1121,16 @@ class Vector2D {
 	toString() {
 		return `[${this.x}, ${this.y}]`;
 	}
+}
+
+function lerpRGB(t, clr1, clr2) {
+	let rgba = { r: 0, g: 0, b: 0, a: 0 };
+	rgba.r = lerp(t, clr1.r, clr2.r);
+	rgba.g = lerp(t, clr1.g, clr2.g);
+	rgba.b = lerp(t, clr1.b, clr2.b);
+	rgba.a = lerp(t, clr1.a, clr2.a);
+	
+	return rgba;
 }
 
 function lerp(t, a, b) {
