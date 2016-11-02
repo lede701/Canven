@@ -179,6 +179,9 @@ function Spaceman()
 	};
 
 	function StartWave() {
+		if (player.shieldsUp && WaveNumber > 1) {
+			score.score += 100;
+		}
 		// Turn shields on for each wave
 		player.shieldsUp = true;
 		AsteroidWave();
@@ -318,7 +321,6 @@ class Fighter extends Entity {
 		this.frameY = 0;
 		this.fireRate = 0.20; // This will be 4 shots per second
 		this.nextFire = 0;
-		this._engine = null;
 		this.shieldsUp = true;
 		this.name = 'Fighter';
 		this.Tag = 'none';
@@ -361,14 +363,6 @@ class Fighter extends Entity {
 		}
 
 		Object.assign(this, config);
-	};
-
-	get Engine() {
-		return this._engine;
-	};
-
-	set Engine(value) {
-		this._engine = value;
 	};
 
 	Draw(ctx) {
@@ -415,12 +409,13 @@ class Fighter extends Entity {
 		// Show some basic sprite debug code
 		if (this.Debug) {
 			let pos = this.Position;
+			let oldStroke = ctx.strokeStyle;
 			let oldFont = ctx.font;
 			let oldStyle = ctx.fillStyle;
 
 			let msg = `[${parseInt(pos.x)}, ${parseInt(pos.y)}]`;
 			let width = ctx.measureText(msg).width;
-			ctx.fillStyle = 'rgba(255,255,255,0.8)';
+			ctx.fillStyle = 'rgba(255,255,255,0.3)';
 			ctx.font = "8pt Georgia";
 			ctx.fillText(msg, x + (width / 2), -(y - 12));
 
@@ -428,11 +423,15 @@ class Fighter extends Entity {
 			ctx.font = oldFont;
 
 			// Draw collider over the space ship
-			ctx.fillStyle = 'rgba(0,250,0,0.2)';
+			ctx.fillStyle = 'rgba(0,250,0,0.1)';
+			ctx.strokeStyle = 'rgba(0,255,0,1.0)';
 			ctx.beginPath();
 			ctx.arc(0, 0, this.collider.radius, 0, Math.PI * 2);
 			ctx.closePath();
 			ctx.fill();
+			ctx.stroke();
+
+			ctx.strokeStyle = oldStroke;
 		}
 
 		ctx.fillStyle = oldStyle;
@@ -547,6 +546,13 @@ class Fighter extends Entity {
 		} else if (this.Position.y > gutter.height) {
 			this.Position.y = gutter.height;
 		}
+
+		// Update collider based on shields up or down
+		if (this.shieldsUp) {
+			this.collider.radius = 70;
+		} else {
+			this.collider.radius = 50;
+		}
 	};
 
 	Setup(world) {
@@ -586,7 +592,7 @@ class Score extends Entity {
 		this.Position = { x: 500, y: 50 };
 		
 		this.HandleScore = (who) => {
-			this.score += who.points;
+			this.score += who.Points;
 		};
 
 		Object.assign(this, config);
@@ -631,7 +637,7 @@ class Asteroid extends Entity {
 		this.name = 'Asteroid';
 		this.Debug = false;
 		this.Tag = 'none';
-		this.points = 15;
+		this._points = 15;
 
 		// Defining function here for scope reasons.
 		// This needs to be defined before we define the collider
@@ -687,6 +693,10 @@ class Asteroid extends Entity {
 		Object.assign(this, config);
 	};
 
+	get Points() {
+		return parseInt(this._points * (this.Velocity.y / 10));
+	}
+
 	Draw(ctx) {
 		if (typeof (this.spriteSheet) != 'undefined') {
 			let x = -32;
@@ -721,6 +731,11 @@ class Asteroid extends Entity {
 				this.Parent.RemoveEntity(this);
 			} else if (typeof (this.Parent.RemoveChild) != 'undefined') {
 				this.Parent.RemoveChild(this);
+			}
+
+			if (typeof (this.Callback) != 'undefined') {
+				this._points = -(parseInt(this._points / 2));
+				this.Callback(this);
 			}
 		}
 
