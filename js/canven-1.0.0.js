@@ -12,6 +12,7 @@
 function Canven(config) {
 	let me = this;
 	me.Assets = undefined;
+	me.Audio = undefined;
 	me.canvas = null;
 	me.canvasId = "theEngine";
 	me.clearClr = '#ffffff';
@@ -39,9 +40,9 @@ function Canven(config) {
 		for (let i = 0; i < ent.length; ++i) {
 			let idx = el.length;
 			let e = ent[i];
+			e.Parent = me;
 			e.Init({});
 			e.Id = idx;
-			e.Parent = me;
 			el[idx] = e;
 
 			// Check if there is a controller tied to the entity
@@ -178,8 +179,11 @@ function Canven(config) {
 		me.Events.Init(me);
 		me.Events.AddEventType('splashend');
 
+		// Create the audio engine and bind it to the assets system
+		me.Audio = new AudioManager();
+
 		// Create asset manager and provide it with our context
-		me.Assets = new Assets({ ctx: me.ctx });
+		me.Assets = new Assets({ ctx: me.ctx, _actx: me.Audio.actx });
 
 		// Connect to mouse tracking
 		me.mousePos = new Vector2D(0, 0);
@@ -394,6 +398,70 @@ function Canven(config) {
 	Object.assign(me, config);
 };
 
+
+///////////////////////////////////////////////////////
+// Audio Manager
+///////////////////////////////////////////////////////
+
+class AudioManager {
+
+	constructor(config) {
+		this.name = 'Audio Manager';
+		this.fx = [];
+
+		this._actx = undefined;
+		this._gain = undefined;
+
+		Object.assign(this, config);
+	}
+
+	get actx() {
+		if (typeof (this._actx) == 'undefined') {
+			this._actx = new AudioContext();
+		}
+
+		return this._actx;
+	};
+
+	Play(buffer) {
+		if (typeof (buffer) != 'undefined') {
+			let actx = this.actx;
+			let src = actx.createBufferSource();
+			src.buffer = buffer;
+
+			// Check if there are any filters on this context
+			if (this.fx.length > 0) {
+				let fxSrc = src;
+				for (let i = 0; i < this.fx.length; ++i) {
+					fxSrc.connect(this.fx[i]);
+					fxSrc = this.fx[i];
+				}
+				fxSrc.connect(actx.destination);
+			} else {
+				src.connect(actx.destination);
+			}
+
+			src.start(actx.currentTime);
+		}
+	};
+
+	toString() {
+		return this.name;
+	};
+
+	set Volume(v) {
+		if (typeof (this._gain) == 'undefined') {
+			this._gain = this.actx.createGain();
+			this.fx.push(this._gain);
+		}
+		this._gain.value = v;
+
+		return this;
+	};
+
+};
+
+
 // Asset Manager Class
 // Converting the new class definition to the old object definition style so that this can be
 // a module to export, maybe...
@@ -410,11 +478,20 @@ class Assets {
 		this.audioTypes = ['wav', 'mp3', 'ogg', 'webm'];
 		this.fontTypes = ['ttf', 'otf', 'ttc', 'woff']; // Need to look up different font extensions
 
+		this._actx = undefined;
+
 		Object.assign(this, config);
 		if (typeof (this.ctx) == 'undefined' || this.ctx == null) {
 			console.error(`Context was not provided to the asset manager! Font's will not preload'`);
 		}
 	};
+
+	get actx() {
+		if (typeof (this._actx) == 'undefined') {
+			this._actx = new AudioContext();
+		}
+		return this._actx;
+	}
 
 	// The load function needs to support promises.  That way we can reliably count the files being loaded and hadnle failed
 	// file loads.
@@ -513,13 +590,14 @@ class Assets {
 		xhr.responseType = 'arraybuffer';
 
 		xhr.addEventListener('load', (e) => {
+			let actx = this.actx;
+			actx.decodeAudioData(xhr.response, buffer => {
+				this[file] = buffer;
+				loadHandler(file);
+			}, error => { console.error(`Audio could not be decoded ${file}`) });
 
 		}, false)
 		xhr.send();
-
-		// Will update this when I have some audio files to load for now it is just a stub
-		this[file] = undefined;
-		loadHandler(file);
 	};
 
 	LoadFont(file, loadHandler) {
@@ -704,6 +782,19 @@ class Entity{
 			}
 		}
 		return p.Assets;
+	}
+
+	get Audio() {
+		let p = this.Parent;
+		while (typeof (p.Assets) == 'undefined') {
+			p = p.Parent;
+			if (typeof (p) == 'undefined') {
+				console.error('Could not find Audio Manager in hierarchy!');
+				break;
+			}
+		}
+
+		return p.Audio;
 	}
 
 	get Debug() {

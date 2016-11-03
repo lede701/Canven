@@ -164,6 +164,11 @@ function Spaceman()
 		SetupKeys(engine, 'D', 68, { x: 180, y: engine.size.y - 100 });
 		SetupKeys(engine, 'W', 87, { x: 140, y: engine.size.y - 140 });
 
+		console.log(engine.Assets);
+
+		// Set engine auto gain level to very low
+		engine.Audio.Volume = 0.1;
+
 		SetupWave();
 	}
 
@@ -642,7 +647,6 @@ class Asteroid extends Entity {
 		// Defining function here for scope reasons.
 		// This needs to be defined before we define the collider
 		this.HandleCollision = (other) => {
-			// TODO: Add an explosion to the scene where I used to be.
 			// Check if we hit a different tag
 			if (this.Tag != other.Tag) {
 				if (other.Tag != 'none') {
@@ -1116,6 +1120,14 @@ function Explosion(config) {
 	let ex = new Sprite(config);
 	// Keep the Draw method for sprite around so it can still be used to draw sprite
 	ex.OriginalDraw = ex.Draw;
+	ex.OriginalInit = ex.Init;
+	ex.Init = (config) => {
+		ex.OriginalInit(config);
+		if (typeof (ex.Audio) != 'undefined' && typeof (ex.Assets) != 'undefined') {
+			console.log('Playing Audio');
+			ex.Audio.Play(ex.Assets['/assets/explosion.wav']);
+		}
+	};
 	ex.Draw = (ctx) => {
 		ex.OriginalDraw(ctx);
 		// Check when current frame is past the sprite animation
