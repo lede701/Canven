@@ -440,7 +440,6 @@ class AudioManager {
 			} else {
 				src.connect(actx.destination);
 			}
-
 			src.start(actx.currentTime);
 		}
 	};

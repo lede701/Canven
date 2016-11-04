@@ -164,8 +164,6 @@ function Spaceman()
 		SetupKeys(engine, 'D', 68, { x: 180, y: engine.size.y - 100 });
 		SetupKeys(engine, 'W', 87, { x: 140, y: engine.size.y - 140 });
 
-		console.log(engine.Assets);
-
 		// Set engine auto gain level to very low
 		engine.Audio.Volume = 0.1;
 
